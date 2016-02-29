@@ -18,24 +18,23 @@
 #include "define.h"
 using namespace std;
 
-// BEGIN PART 1
-// TODO: PART 1 STEP 1a
-#include <d3d11.h>
-//#include <d3dcompiler.h>
-
-// TODO: PART 1 STEP 1b
-// TODO: PART 2 STEP 6
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
 #include "Grid_VS.csh"
 #include "Grid_PS.csh"
 #include "DDSTextureLoader.h"
+#include "XTime.h"
+#include "Camera.h"
+#include "SamplerStates.h"
 #define BACKBUFFER_WIDTH	500
 #define BACKBUFFER_HEIGHT	500
 #define NUM_VERT 16
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
 //************************************************************
+
+
+XTime timer;
 Camera camera;
 
 class ObjectBase
@@ -199,99 +198,6 @@ public:
 	}
 };
 
-class Cube
-{
-public:
-	Cube()
-	{
-		numVerts = 8;
-		numIndices = 36;
-	}
-	void Create(ID3D11Device* gfx)
-	{
-		XMFLOAT3 v[] =
-		{
-			XMFLOAT3(-1,-1,-1),
-			XMFLOAT3(-1,+1,-1),
-			XMFLOAT3(+1,+1,-1),
-			XMFLOAT3(+1,-1,-1),
-			XMFLOAT3(-1,-1,+1),
-			XMFLOAT3(-1,+1,+1),
-			XMFLOAT3(+1,+1,+1),
-			XMFLOAT3(+1,-1,+1)
-		};
-
-		UINT indices[] =
-		{
-			0,1,2,
-			0,2,3,
-			4,6,5,
-			4,7,6,
-			4,5,1,
-			4,1,0,
-			3,2,6,
-			3,6,7,
-			1,5,6,
-			1,6,2,
-			4,0,3,
-			4,3,7
-		};
-
-		D3D11_BUFFER_DESC bd;
-		ZeroMemory(&bd, sizeof(bd));
-		bd.Usage = D3D11_USAGE_IMMUTABLE;
-
-		bd.ByteWidth = sizeof(XMFLOAT3)*numVerts;
-		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		bd.CPUAccessFlags = 0;
-		D3D11_SUBRESOURCE_DATA sd;
-		ZeroMemory(&sd, sizeof(sd));
-
-		sd.pSysMem = v;
-		HRESULT rs = gfx->CreateBuffer(&bd, &sd, &pVertexBuffer);
-		if (rs != S_OK)
-		{
-			OutputDebugString(L"Create Triangle VertexBuffer Failed");
-		}
-		bd.ByteWidth = sizeof(UINT) * numIndices;
-		bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-		sd.pSysMem = indices;
-		rs = gfx->CreateBuffer(&bd, &sd, &pIndexBuffer);
-		if (rs != S_OK)
-		{
-			OutputDebugString(L"Create Triangle IndexBuffer Failed");
-		}
-
-	}
-
-	void Draw(ID3D11DeviceContext* gfx)
-	{
-		UINT stride = sizeof XMFLOAT3;
-		UINT offset = 0;
-		
-		
-		gfx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		gfx->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
-		gfx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-		gfx->DrawIndexed(numIndices, 0, 0);
-
-	}
-
-	~Cube()
-	{
-		if (pSRV)pSRV->Release();
-		if (pIndexBuffer)pIndexBuffer->Release();
-		if (pVertexBuffer)pVertexBuffer->Release();
-	}
-private:
-	ID3D11Buffer* pVertexBuffer = 0;
-	ID3D11Buffer* pIndexBuffer = 0;
-	ID3D11ShaderResourceView* pSRV = 0;
-	UINT numVerts;
-	UINT numIndices;
-};
-
 struct Grid
 {
 	XMFLOAT4 v[84];
@@ -387,17 +293,18 @@ struct Grid
 		gfx->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
 		gfx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 		gfx->VSSetShader(vs, 0, 0);
+		gfx->PSSetShader(ps, 0, 0);
+		gfx->IASetInputLayout(pLayout);
 
 		D3D11_MAPPED_SUBRESOURCE mr = {};
 
-		XMMATRIX world = XMLoadFloat4x4(&transform) * XMLoadFloat4x4(&viewProj);
+		XMMATRIX world = XMLoadFloat4x4(&transform) * XMLoadFloat4x4(&camera.viewProj);
 
 		gfx->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
 		memcpy(mr.pData, &world, sizeof(XMFLOAT4X4));
 		gfx->Unmap(pConstantBuffer, 0);
+
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
-		gfx->PSSetShader(ps, 0, 0);
-		gfx->IASetInputLayout(pLayout);
 		gfx->RSSetState(bMSAA ? pRasterizerState : nullptr);
 		gfx->DrawIndexed(84, 0, 0);
 	}
@@ -429,7 +336,6 @@ class DEMO_APP
 	ID3D11RasterizerState* pRasterizerState = 0;
 	ID3D11RasterizerState* pRasterizerState_back = 0;
 	ID3D11BlendState* pOverlay = 0;
-	ID3D11SamplerState* pSamplarState = 0;
 
 	ID3D11InputLayout* pLayout = 0;
 	ID3D11VertexShader* vs = 0;
@@ -437,14 +343,11 @@ class DEMO_APP
 
 	ID3D11ShaderResourceView* pSRV = 0;
 	ID3D11ShaderResourceView* pSRV1 = 0;
-
+	SamplerStates samplers;
 	ConstantPerObject cb;
-
-	float numPic = 0;
 
 	Grid grid;
 	Star star;
-	Cube cube;
 	// BEGIN PART 5
 	// TODO: PART 5 STEP 1
 	// TODO: PART 2 STEP 4
@@ -455,8 +358,8 @@ class DEMO_APP
 	// TODO: PART 3 STEP 2b
 	
 	// TODO: PART 3 STEP 4a
-	float nearPlane = 0.1f;
-	float farPlane = 1000;
+	float nearPlane = 0.01f;
+	float farPlane = 10000;
 	float FOV = 1.57079633f;
 public:
 	// BEGIN PART 2
@@ -514,7 +417,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		sd.BufferDesc.Height = BACKBUFFER_HEIGHT;
 		sd.SampleDesc.Count = 1;
 		sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		XMStoreFloat4x4(&proj,XMMatrixPerspectiveFovLH(FOV, BACKBUFFER_HEIGHT / (float)BACKBUFFER_WIDTH, nearPlane, farPlane));
+		camera.SetProjection(FOV, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT, nearPlane, farPlane);
 		UINT flag = 0;
 #ifdef _DEBUG
 		flag = D3D11_CREATE_DEVICE_DEBUG;
@@ -644,26 +547,17 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	CreateDDSTextureFromFile(pDevice, L"chest_base.dds", nullptr, &pSRV);
 	CreateDDSTextureFromFile(pDevice, L"numbers_test.dds", nullptr, &pSRV1);
 
-	{
-		D3D11_SAMPLER_DESC spd = {};
-		spd.Filter = D3D11_FILTER_ANISOTROPIC;
-		spd.MaxAnisotropy = 4;
-		spd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-		spd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-		spd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-		pDevice->CreateSamplerState(&spd, &pSamplarState);
-	}
-	
+	samplers.CreateSamplerStates(pDevice);
+
 	float factor[] = { 1,1,1,1 };
 	pDeviceContext->OMSetBlendState(pOverlay, factor, 0xffffffff);
 	pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
 	pDeviceContext->RSSetViewports(1, &viewPort);
 	pDeviceContext->PSSetShaderResources(0, 1, &pSRV1);
-	pDeviceContext->PSSetSamplers(0, 1, &pSamplarState);
-	grid.Create(pDevice);
-	cube.Create(pDevice);
-	camera.Update();
+	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
 	star.Create(pDevice);
+	grid.Create(pDevice);
+	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 }
 
 //************************************************************
@@ -673,56 +567,62 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 bool DEMO_APP::Run()
 {
 	timer.Signal();
-	numPic += (float)timer.Delta();
-	if (numPic >= 4)numPic = 0;
-	camera.Update();
-	static const float clearColor[] = { 0.1f, 0.1f, 1.0f, 1.0f };
-	pDeviceContext->ClearRenderTargetView(pRTV, clearColor);
+	camera.Update((float)timer.Delta());
+
+	//static const float clearColor[] = { 0.1f, 0.1f, 1.0f, 1.0f };
+	//pDeviceContext->ClearRenderTargetView(pRTV, clearColor);
+
 	pDeviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+	D3D11_MAPPED_SUBRESOURCE ms;
+	ZeroMemory(&ms, sizeof(ms));
+
+	if (GetAsyncKeyState('1') & 0x01)
+	{
+		camera.SetCubemap(pDevice, L"Cube_Lake.dds");
+	}
+	if (GetAsyncKeyState('2') & 0x01)
+	{
+		camera.SetCubemap(pDevice, L"Cube_Desert.dds");
+	}
+
+	XMStoreFloat4x4(&cb.worldMatrix, camera.GetPos() * XMLoadFloat4x4(&camera.viewProj));
+
+	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
+	memcpy(ms.pData, &cb, sizeof(cb));
+	pDeviceContext->Unmap(pConstantBuffer, 0);
+	pDeviceContext->VSSetConstantBuffers(0, 1, &pConstantBuffer);
+
+	camera.DrawSkybox(pDeviceContext);
 
 	pDeviceContext->IASetInputLayout(pLayout);
 	pDeviceContext->VSSetShader(vs, 0, 0);
 	pDeviceContext->PSSetShader(ps, 0, 0);
 
-	D3D11_MAPPED_SUBRESOURCE ms;
-	ZeroMemory(&ms, sizeof(ms));
-
-	XMStoreFloat4x4(&cb.worldMatrix, XMLoadFloat4x4(&viewProj));
-	
-	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
-	memcpy(ms.pData, &cb, sizeof(cb));
-	pDeviceContext->Unmap(pConstantBuffer, 0);
-	pDeviceContext->VSSetConstantBuffers(0, 1, &pConstantBuffer);
-
-	pDeviceContext->RSSetState(pRasterizerState_back);
-	cube.Draw(pDeviceContext);
+	pDeviceContext->RSSetState(pRasterizerState);
 
 
 	static float angle = 0;
 	angle += 0.0001f;
-	XMMATRIX trans = XMMatrixRotationY(angle) * XMLoadFloat4x4(&viewProj);
-	XMStoreFloat4x4(&cb.worldMatrix, trans);
-
-
-	if (GetAsyncKeyState('1'))
-		pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
-	if (GetAsyncKeyState('2'))
-		pDeviceContext->PSSetShaderResources(0, 1, &pSRV1);
-
+	XMStoreFloat4x4(&cb.worldMatrix, XMMatrixRotationY(angle) * XMLoadFloat4x4(&camera.viewProj));
 
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 	memcpy(ms.pData, &cb, sizeof(cb));
 	pDeviceContext->Unmap(pConstantBuffer, 0);
 	pDeviceContext->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 
+
+	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
+
+	star.Draw(pDeviceContext);
 
 	if (GetAsyncKeyState('3') & 0x01)
 	{
 		grid.ToogleState(pDeviceContext);
 	}
 
-	pDeviceContext->RSSetState(pRasterizerState);
-	star.Draw(pDeviceContext);
+
+
 	grid.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
 	return true; 
@@ -735,7 +635,6 @@ bool DEMO_APP::Run()
 bool DEMO_APP::ShutDown()
 {
 	if (pRasterizerState_back)pRasterizerState_back->Release();
-	if (pSamplarState)pSamplarState->Release();
 	if (pSRV1)pSRV1->Release();
 	if (pSRV)pSRV->Release();
 	if (pLayout)pLayout->Release();
@@ -791,7 +690,7 @@ void DEMO_APP::Resize(WORD width, WORD height)
 		depthBuffer->Release();
 		pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
 		pDeviceContext->RSSetViewports(1, &viewPort);
-		XMStoreFloat4x4(&proj, XMMatrixPerspectiveFovLH(FOV, width / (float)height, nearPlane, farPlane));
+		camera.SetProjection(FOV, width, height, nearPlane, farPlane);
 	}
 }
 
@@ -800,7 +699,6 @@ void DEMO_APP::Resize(WORD width, WORD height)
 //************************************************************
 
 // ****************** BEGIN WARNING ***********************// 
-// WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY!
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine,	int nCmdShow );						   
 LRESULT CALLBACK WndProc(HWND hWnd,	UINT message, WPARAM wparam, LPARAM lparam );		
 int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, LPTSTR, int )
@@ -824,23 +722,6 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
     if(GetAsyncKeyState(VK_ESCAPE))
 		message = WM_DESTROY;
 
-	//if (GetAsyncKeyState('A'))
-	//{
-	//	camera.angleY -= (float)timer.Delta() * 50;
-	//}
-
-	//if (GetAsyncKeyState('D'))
-	//{
-	//	camera.angleY += (float)timer.Delta() * 50;
-	//}
-	//if (GetAsyncKeyState('E'))
-	//{
-	//	camera.angleX -= (float)timer.Delta() * 50;
-	//}
-	//if (GetAsyncKeyState('F'))
-	//{
-	//	camera.angleX += (float)timer.Delta() * 50;
-	//}
     switch ( message )
     {
         case ( WM_DESTROY ): { PostQuitMessage( 0 ); }
