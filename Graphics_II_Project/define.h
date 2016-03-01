@@ -24,7 +24,6 @@ struct Vertex_m
 	XMFLOAT3 pos;
 	XMFLOAT3 normal;
 	XMFLOAT2 uv0;
-	XMFLOAT2 uv1;
 };
 
 static float DegreeToRadian(float degree)

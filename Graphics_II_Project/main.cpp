@@ -26,6 +26,7 @@ using namespace std;
 #include "XTime.h"
 #include "Camera.h"
 #include "SamplerStates.h"
+#include "MeshLoader.h"
 #define BACKBUFFER_WIDTH	500
 #define BACKBUFFER_HEIGHT	500
 #define NUM_VERT 16
@@ -120,13 +121,13 @@ public:
 		indices = new UINT[numIndices];
 		v[0].pos.x = 0;
 		v[0].pos.y = 0;
-		v[0].pos.z = halfthickness;
+		v[0].pos.z = -halfthickness;
 		v[0].color.x = 0.2f;
 		v[0].color.y = 0.4f;
 		v[0].color.z = 1;
 		v[11].pos.x = 0;
 		v[11].pos.y = 0;
-		v[11].pos.z = -halfthickness;
+		v[11].pos.z = halfthickness;
 		v[11].color.x = 1;
 		v[11].color.y = 0.4f;
 		v[11].color.z = 0.2f;
@@ -138,19 +139,19 @@ public:
 			float angle2 = da*PI_2*i;
 			v[i    ].pos.x = cosf(angle1) * radiusOut;
 			v[i    ].pos.y = sinf(angle1) * radiusOut;
-			v[i    ].pos.z = halfthickness;
+			v[i    ].pos.z = -halfthickness;
 
 			v[i + 1].pos.x = cosf(angle2) * radiusIn;
 			v[i + 1].pos.y = sinf(angle2) * radiusIn;
-			v[i + 1].pos.z = halfthickness;
+			v[i + 1].pos.z = -halfthickness;
 
 			v[i + 11].pos.x = cosf(angle1) * radiusOut;
 			v[i + 11].pos.y = sinf(angle1) * radiusOut;
-			v[i + 11].pos.z = -halfthickness;
+			v[i + 11].pos.z = halfthickness;
 
 			v[i + 12].pos.x = cosf(angle2) * radiusIn;
 			v[i + 12].pos.y = sinf(angle2) * radiusIn;
-			v[i + 12].pos.z = -halfthickness;
+			v[i + 12].pos.z = halfthickness;
 
 			float color = (1) * 0.2f;
 
@@ -315,6 +316,91 @@ struct Grid
 	}
 };
 
+class Mesh
+{
+	ID3D11Buffer* pVertexBuffer = 0;
+	ID3D11Buffer* pIndexBuffer = 0;
+	ID3D11Buffer* pConstantBuffer = 0;
+	ID3D11InputLayout* pLayout = 0;
+	ID3D11VertexShader* vs = 0;
+	ID3D11PixelShader* ps = 0;
+	XMFLOAT4X4 transform;
+	UINT numIndex;
+public:
+	Mesh()
+	{
+		XMStoreFloat4x4(&transform, XMMatrixIdentity());
+	}
+	void Create(ID3D11Device* gfx, const wchar_t* filePath)
+	{
+		std::vector<Vertex_m> v;
+		std::vector<UINT> index;
+		MeshLoader::LoadOBJFromFile(filePath, v, index);
+		numIndex = (UINT)index.size();
+
+		D3D11_BUFFER_DESC bd = {};
+		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		bd.ByteWidth = sizeof(Vertex_m) * (UINT)v.size();
+		bd.Usage = D3D11_USAGE_IMMUTABLE;
+		D3D11_SUBRESOURCE_DATA sd = {};
+		sd.pSysMem = v.data();
+		gfx->CreateBuffer(&bd, &sd, &pVertexBuffer);
+
+		bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		bd.ByteWidth = sizeof(UINT) * (UINT)index.size();
+		sd.pSysMem = index.data();
+		gfx->CreateBuffer(&bd, &sd, &pIndexBuffer);
+		bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		bd.ByteWidth = sizeof(XMFLOAT4X4);
+		bd.Usage = D3D11_USAGE_DYNAMIC;
+		bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		gfx->CreateBuffer(&bd, 0, &pConstantBuffer);
+
+		gfx->CreateVertexShader(Trivial_VS, ARRAYSIZE(Trivial_VS), 0, &vs);
+		gfx->CreatePixelShader(Trivial_PS, ARRAYSIZE(Trivial_PS), 0, &ps);
+		D3D11_RASTERIZER_DESC rasterDesc = {};
+
+		D3D11_INPUT_ELEMENT_DESC layout[] =
+		{
+			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0,
+			"TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0,
+			"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0
+		};
+		gfx->CreateInputLayout(layout, ARRAYSIZE(layout), Trivial_VS, ARRAYSIZE(Trivial_VS), &pLayout);
+	}
+	~Mesh()
+	{
+		if (ps)ps->Release();
+		if (vs)vs->Release();
+		if (pLayout)pLayout->Release();
+		if (pConstantBuffer)pConstantBuffer->Release();
+		if (pVertexBuffer)pVertexBuffer->Release();
+		if (pIndexBuffer)pIndexBuffer->Release();
+	}
+	void Draw(ID3D11DeviceContext* gfx)
+	{
+		UINT stride = sizeof Vertex_m;
+		UINT offset = 0;
+
+		gfx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		gfx->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
+		gfx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+		gfx->VSSetShader(vs, 0, 0);
+		gfx->PSSetShader(ps, 0, 0);
+		gfx->IASetInputLayout(pLayout);
+
+		D3D11_MAPPED_SUBRESOURCE mr = {};
+
+		XMMATRIX world = XMLoadFloat4x4(&transform) * XMLoadFloat4x4(&camera.viewProj);
+
+		gfx->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
+		memcpy(mr.pData, &world, sizeof(XMFLOAT4X4));
+		gfx->Unmap(pConstantBuffer, 0);
+
+		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
+		gfx->DrawIndexed(numIndex, 0, 0);
+	}
+};
 class DEMO_APP
 {	
 	HINSTANCE						application;
@@ -345,7 +431,7 @@ class DEMO_APP
 	ID3D11ShaderResourceView* pSRV1 = 0;
 	SamplerStates samplers;
 	ConstantPerObject cb;
-
+	Mesh teapot;
 	Grid grid;
 	Star star;
 	// BEGIN PART 5
@@ -486,6 +572,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ZeroMemory(&rasterDesc, sizeof(rasterDesc));
 	rasterDesc.FillMode = D3D11_FILL_SOLID;
 	rasterDesc.CullMode = D3D11_CULL_BACK;
+	rasterDesc.FrontCounterClockwise = TRUE;
 	pDevice->CreateRasterizerState(&rasterDesc, &pRasterizerState);
 
 	rasterDesc.CullMode = D3D11_CULL_FRONT;
@@ -557,6 +644,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
 	star.Create(pDevice);
 	grid.Create(pDevice);
+	teapot.Create(pDevice, L"chest.obj");
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 }
 
@@ -568,7 +656,7 @@ bool DEMO_APP::Run()
 {
 	timer.Signal();
 	camera.Update((float)timer.Delta());
-
+	
 	//static const float clearColor[] = { 0.1f, 0.1f, 1.0f, 1.0f };
 	//pDeviceContext->ClearRenderTargetView(pRTV, clearColor);
 
@@ -615,7 +703,7 @@ bool DEMO_APP::Run()
 	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
 
 	star.Draw(pDeviceContext);
-
+	teapot.Draw(pDeviceContext);
 	if (GetAsyncKeyState('3') & 0x01)
 	{
 		grid.ToogleState(pDeviceContext);

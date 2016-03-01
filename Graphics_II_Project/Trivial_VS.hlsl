@@ -3,8 +3,8 @@
 struct INPUT
 {
 	float3 coordinate : POSITION;
-	float3 uvw	  :		TEXCOORD0;
-	float3 normal :		TEXCOORD1;
+	float3 normal :		TEXCOORD0;
+	float2 uvw	  :		TEXCOORD1;
 };
 
 struct OUTPUT
