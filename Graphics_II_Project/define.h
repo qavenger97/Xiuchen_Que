@@ -11,9 +11,8 @@ using namespace DirectX;
 struct ConstantPerObject
 {
 	XMFLOAT4X4 worldMatrix;
+	XMFLOAT4X4 projectionMatrix;
 };
-
-
 
 struct Vertex
 {
@@ -39,11 +38,15 @@ struct SpotLight
 {
 	XMFLOAT3 pos;
 	FLOAT att;
+	XMFLOAT4 color;
+	FLOAT intensity;
+	FLOAT pad[3];
 };
 
 struct LightBuffer
 {
 	DirectionalLight sun;
+	SpotLight spot;
 };
 
 static float DegreeToRadian(float degree)

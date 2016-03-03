@@ -8,24 +8,44 @@ struct DirectionalLight
 	float4 color;
 };
 
+struct SpotLight
+{
+	float3 pos;
+	float att;
+	float4 color;
+	float intensity;
+	float3 pad;
+};
+
 cbuffer Light : register(b0)
 {
 	DirectionalLight sun;
+	SpotLight spot;
 }
 
 struct INPUT
 {
-	float4 pos				   : SV_POSITION;
-	float3 normal			   : NORMAL;
-	float2 uv				   : TEXCOORD0;
-
+	float4 pos					: SV_POSITION;
+	float3 normal				: NORMAL;
+	float2 uv					: TEXCOORD0;
+	float3 posView				: TEXCOORD1;
 };
 
 float4 main( INPUT input ) : SV_TARGET
 {
-	float3 ldir = -sun.dir;
+	//DirectionLight
+	float3 ddir = -sun.dir;
 	float3 nrm = input.normal;
 	float4 texColor = tex.Sample(filter, input.uv);
-	return float4((max(0, dot(ldir, nrm)) * sun.color * texColor * sun.intensity).rgb,texColor.a);
+	float4 totalLight = max(0, dot(ddir, nrm))* sun.intensity * sun.color;
+	//SpotLight
+	float3 sdir = spot.pos - input.posView;
+	float len = length(sdir);
+	float att = 1 - clamp(len / spot.att, 0, 1);
+	sdir /= len;
+	totalLight = max(0, dot(sdir, nrm))*spot.intensity*att*spot.color + totalLight;
+
+	return float4( (texColor * totalLight ).rgb,texColor.a);
+
 	//return tex.Sample(filter, input.uv);
 }

@@ -256,7 +256,7 @@ struct Grid
 		gfx->CreateBuffer(&bd, &sd, &pIndexBuffer);
 
 		bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		bd.ByteWidth = sizeof(XMFLOAT4X4);
+		bd.ByteWidth = sizeof(ConstantPerObject);
 		bd.Usage = D3D11_USAGE_DYNAMIC;
 		bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		gfx->CreateBuffer(&bd, 0, &pConstantBuffer);
@@ -299,7 +299,7 @@ struct Grid
 
 		D3D11_MAPPED_SUBRESOURCE mr = {};
 
-		XMMATRIX world = XMLoadFloat4x4(&transform) * XMLoadFloat4x4(&camera.viewProj);
+		XMMATRIX world = XMLoadFloat4x4(&transform) * camera.GetViewMatrix() * camera.GetProjectionMatrix();
 
 		gfx->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
 		memcpy(mr.pData, &world, sizeof(XMFLOAT4X4));
@@ -329,7 +329,7 @@ class Mesh
 public:
 	Mesh()
 	{
-		XMStoreFloat4x4(&transform, XMMatrixIdentity());
+		XMStoreFloat4x4(&transform, XMMatrixScaling(0.2f,0.2f,0.2f));
 	}
 	void Create(ID3D11Device* gfx, const wchar_t* filePath)
 	{
@@ -351,7 +351,7 @@ public:
 		sd.pSysMem = index.data();
 		gfx->CreateBuffer(&bd, &sd, &pIndexBuffer);
 		bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		bd.ByteWidth = sizeof(XMFLOAT4X4);
+		bd.ByteWidth = sizeof(ConstantPerObject);
 		bd.Usage = D3D11_USAGE_DYNAMIC;
 		bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		gfx->CreateBuffer(&bd, 0, &pConstantBuffer);
@@ -390,11 +390,11 @@ public:
 		gfx->IASetInputLayout(pLayout);
 
 		D3D11_MAPPED_SUBRESOURCE mr = {};
-
-		XMMATRIX world = XMLoadFloat4x4(&transform) * XMLoadFloat4x4(&camera.viewProj);
-
+		ConstantPerObject cb;
+		XMStoreFloat4x4(&cb.worldMatrix,XMLoadFloat4x4(&transform) * camera.GetViewMatrix());
+		XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
 		gfx->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
-		memcpy(mr.pData, &world, sizeof(XMFLOAT4X4));
+		memcpy(mr.pData, &cb, sizeof(cb));
 		gfx->Unmap(pConstantBuffer, 0);
 
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
@@ -659,7 +659,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	lights.sun.dir = XMFLOAT3(0, -1, 0);
 	lights.sun.color = XMFLOAT4(0.9f, 0.7f, 0.7f,1);
 	lights.sun.intensity = 1;
-
+	lights.spot.pos = XMFLOAT3(0, 1, 0);
+	lights.spot.color = XMFLOAT4(0.3f, 0.6f, 0.5f, 1);
+	lights.spot.intensity = 1;
+	lights.spot.att = 15;
 }
 
 //************************************************************
@@ -688,7 +691,7 @@ bool DEMO_APP::Run()
 		camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 	}
 
-	XMStoreFloat4x4(&cb.worldMatrix, camera.GetPos() * XMLoadFloat4x4(&camera.viewProj));
+	XMStoreFloat4x4(&cb.worldMatrix, camera.GetPos() * camera.GetViewProjectionMatrix());
 
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 	memcpy(ms.pData, &cb, sizeof(cb));
@@ -706,7 +709,9 @@ bool DEMO_APP::Run()
 
 	static float angle = 0;
 	angle += 0.0001f;
-	XMStoreFloat4x4(&cb.worldMatrix, XMMatrixRotationY(angle) * XMLoadFloat4x4(&camera.viewProj));
+	if (angle >= XM_2PI)angle = 0;
+	XMStoreFloat4x4(&cb.worldMatrix, XMMatrixRotationY(angle) * camera.GetViewMatrix());
+	XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
 
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 	memcpy(ms.pData, &cb, sizeof(cb));
@@ -716,11 +721,14 @@ bool DEMO_APP::Run()
 
 	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
 
-	star.Draw(pDeviceContext);
-
 	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
 
+	star.Draw(pDeviceContext);
+
+
 	teapot.Draw(pDeviceContext);
+
+
 	if (GetAsyncKeyState('3') & 0x01)
 	{
 		grid.ToogleState(pDeviceContext);
@@ -738,6 +746,51 @@ bool DEMO_APP::Run()
 		camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
 	}
 
+
+	if (GetAsyncKeyState(VK_LEFT))
+	{	
+		XMVECTOR d = XMVectorSet(0,0,0,0);
+		XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+		d.m128_f32[0] = -(float)timer.Delta() * 20;
+		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+		d.m128_f32[1] = 0;
+		d.m128_f32[2] = 0;
+		XMStoreFloat3(&lights.spot.pos, d + pos);
+	
+	}
+
+	if (GetAsyncKeyState(VK_RIGHT))
+	{
+		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+		XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+		d.m128_f32[0] = (float)timer.Delta() * 20;
+		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+		d.m128_f32[1] = 0;
+		d.m128_f32[2] = 0;
+		XMStoreFloat3(&lights.spot.pos, d + pos);
+	}
+
+	if (GetAsyncKeyState(VK_UP))
+	{
+		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+		XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+		d.m128_f32[2] = (float)timer.Delta() * 20;
+		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+		d.m128_f32[1] = 0;
+		d.m128_f32[0] = 0;
+		XMStoreFloat3(&lights.spot.pos, d + pos);
+	}
+
+	if (GetAsyncKeyState(VK_DOWN))
+	{
+		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+		XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+		d.m128_f32[2] = -(float)timer.Delta() * 20;
+		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+		d.m128_f32[1] = 0;
+		d.m128_f32[0] = 0;
+		XMStoreFloat3(&lights.spot.pos, d + pos);
+	}
 	grid.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
 	return true; 
@@ -823,7 +876,7 @@ void DEMO_APP::OnMouseMove(WPARAM btnState, WORD x, WORD y)
 		dir = XMVector3Rotate(dir, XMQuaternionRotationMatrix(rot));
 		XMStoreFloat3(&lights.sun.dir, dir);
 	}
-	
+
 	mouseX = x;
 	mouseY = y;
 }

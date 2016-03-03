@@ -5,9 +5,9 @@ class Camera
 {
 private:
 	XMFLOAT4X4 transform;
+	XMFLOAT4X4 proj;
 	WORD mouseX;
 	WORD mouseY;
-	XMFLOAT4X4 proj;
 	Skybox* skybox = nullptr;
 private:
 	void Forward(float speed);
@@ -26,7 +26,10 @@ public:
 	void OnMouseMove(WPARAM btnState, WORD x, WORD y);
 	void DrawSkybox(ID3D11DeviceContext* gfx);
 	XMMATRIX GetPos()const;
+	XMMATRIX GetProjectionMatrix()const;
+	XMMATRIX GetViewMatrix()const;
+	XMMATRIX GetViewProjectionMatrix()const;
+	XMMATRIX GetViewMatrixInverse()const;
 public:
-	XMFLOAT4X4 viewProj;
 };
 

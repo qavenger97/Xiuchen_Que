@@ -4,9 +4,8 @@
 Camera::Camera() : mouseX(0), mouseY(0)
 {
 	XMMATRIX view = XMMatrixIdentity();
-	view.r[3] = XMVectorSet(0, 0, -1, 1);
-	XMMATRIX projMatrix = XMLoadFloat4x4(&proj);
-	XMStoreFloat4x4(&viewProj, XMMatrixInverse(nullptr, view) * projMatrix);
+	view.r[3] = XMVectorSet(0, 2, 1, 1);
+	view = XMMatrixRotationX(0.5f) * XMMatrixRotationY(XM_PI) * view;
 	XMStoreFloat4x4(&transform, view);
 }
 
@@ -71,30 +70,6 @@ void Camera::Update(float dt)
 		Fly(-dt);
 	}
 
-
-	if (GetAsyncKeyState(VK_LEFT))
-	{
-		Yaw(dt);
-	}
-
-	if (GetAsyncKeyState(VK_RIGHT))
-	{
-		Yaw(-dt);
-	}
-
-	if (GetAsyncKeyState(VK_UP))
-	{
-		Pitch(dt);
-	}
-
-	if (GetAsyncKeyState(VK_DOWN))
-	{
-		Pitch(-dt);
-	}
-
-	XMMATRIX trans = XMLoadFloat4x4(&transform);
-	XMMATRIX projection = XMLoadFloat4x4(&proj);
-	XMStoreFloat4x4(&viewProj, XMMatrixInverse(nullptr, trans) * projection);
 }
 
 void Camera::OnMouseDown(WPARAM btnState, WORD x, WORD y)
@@ -111,7 +86,7 @@ void Camera::OnMouseUp(WPARAM btnState, WORD x, WORD y)
 
 void Camera::OnMouseMove(WPARAM btnState, WORD x, WORD y)
 {
-	if (btnState & WM_LBUTTONDOWN)
+	if (btnState & VK_LBUTTON)
 	{
 		float dx = DegreeToRadian(x - (float)mouseX);
 		float dy = DegreeToRadian(y - (float)mouseY);
@@ -192,3 +167,24 @@ XMMATRIX Camera::GetPos() const
 	XMMATRIX pos = XMMatrixTranslationFromVector(trans.r[3]);
 	return pos;
 }
+
+XMMATRIX Camera::GetProjectionMatrix() const
+{
+	return XMLoadFloat4x4(&proj);
+}
+
+XMMATRIX Camera::GetViewMatrix() const
+{
+	return XMMatrixInverse(0,(XMLoadFloat4x4(&transform)));
+}
+
+XMMATRIX Camera::GetViewProjectionMatrix() const
+{
+	return XMMatrixInverse(0, (XMLoadFloat4x4(&transform))) * XMLoadFloat4x4(&proj);
+}
+
+XMMATRIX Camera::GetViewMatrixInverse() const
+{
+	return XMLoadFloat4x4(&transform);
+}
+
