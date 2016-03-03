@@ -672,10 +672,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	lights.sun.dir = XMFLOAT3(0, -1, 0);
 	lights.sun.color = XMFLOAT4(0.9f, 0.7f, 0.7f,1);
 	lights.sun.intensity = 1;
-	lights.spot.pos = XMFLOAT3(0, 1, 0);
-	lights.spot.color = XMFLOAT4(0.3f, 0.6f, 0.5f, 1);
-	lights.spot.intensity = 1;
-	lights.spot.att = 15;
+	lights.pointLight.pos = XMFLOAT3(0, 1, 0);
+	lights.pointLight.color = XMFLOAT4(0.3f, 0.6f, 0.5f, 1);
+	lights.pointLight.intensity = 1;
+	lights.pointLight.att = 15;
 }
 
 //************************************************************
@@ -765,41 +765,41 @@ bool DEMO_APP::Run()
 	if (GetAsyncKeyState(VK_LEFT))
 	{	
 		XMVECTOR d = XMVectorSet(0,0,0,0);
-		XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+		XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
 		d.m128_f32[0] = -(float)timer.Delta() * 20;
 		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 		d.m128_f32[1] = 0;
 		d.m128_f32[2] = 0;
-		XMStoreFloat3(&lights.spot.pos, d + pos);
+		XMStoreFloat3(&lights.pointLight.pos, d + pos);
 	
 	}
 
 	if (GetAsyncKeyState(VK_RIGHT))
 	{
 		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-		XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+		XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
 		d.m128_f32[0] = (float)timer.Delta() * 20;
 		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 		d.m128_f32[1] = 0;
 		d.m128_f32[2] = 0;
-		XMStoreFloat3(&lights.spot.pos, d + pos);
+		XMStoreFloat3(&lights.pointLight.pos, d + pos);
 	}
 
 	if (GetAsyncKeyState(VK_UP))
 	{
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.spot.pos.y += (float)timer.Delta() * 20;
+			lights.pointLight.pos.y += (float)timer.Delta() * 20;
 		}
 		else
 		{
 			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-			XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+			XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
 			d.m128_f32[2] = (float)timer.Delta() * 20;
 			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 			d.m128_f32[1] = 0;
 			d.m128_f32[0] = 0;
-			XMStoreFloat3(&lights.spot.pos, d + pos);
+			XMStoreFloat3(&lights.pointLight.pos, d + pos);
 		}
 	}
 
@@ -807,17 +807,17 @@ bool DEMO_APP::Run()
 	{
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.spot.pos.y -= (float)timer.Delta() * 20;
+			lights.pointLight.pos.y -= (float)timer.Delta() * 20;
 		}
 		else
 		{
 			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-			XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+			XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
 			d.m128_f32[2] = -(float)timer.Delta() * 20;
 			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 			d.m128_f32[1] = 0;
 			d.m128_f32[0] = 0;
-			XMStoreFloat3(&lights.spot.pos, d + pos);
+			XMStoreFloat3(&lights.pointLight.pos, d + pos);
 		}
 	}
 	grid.Draw(pDeviceContext);

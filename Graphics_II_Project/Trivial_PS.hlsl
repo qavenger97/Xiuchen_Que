@@ -9,7 +9,7 @@ struct DirectionalLight
 	float4 color;
 };
 
-struct SpotLight
+struct PointLight
 {
 	float3 pos;
 	float att;
@@ -21,7 +21,7 @@ struct SpotLight
 cbuffer Light : register(b0)
 {
 	DirectionalLight sun;
-	SpotLight spot;
+	PointLight pointLight;
 }
 
 struct INPUT
@@ -36,27 +36,37 @@ struct INPUT
 
 float4 main( INPUT input ) : SV_TARGET
 {
-	//DirectionLight
-	float3 ddir = -sun.dir;
 	float3 nrmT = normal.Sample(filter, input.uv).xyz;
 	nrmT = normalize((nrmT * 2 - 1.0f));
-	
+
 	float3 nrm = normalize(input.normal);
 	float3 ten = normalize(input.tengent);
 	float3 bin = normalize(input.binormal);
 
 	float3x3 TBN = float3x3(ten, bin, nrm);
+
+
 	nrm = mul(nrmT, TBN);
 	float4 texColor = tex.Sample(filter, input.uv);
-	float4 totalLight = max(0, dot(ddir, nrm))* sun.intensity * sun.color;
-	//SpotLight
-	float3 sdir = spot.pos - input.posWorld;
-	float len = length(sdir);
-	float att = 1 - clamp(len / spot.att, 0, 1);
-	sdir /= len;
-	totalLight = max(0, dot(sdir, nrm))*spot.intensity*att*spot.color + totalLight;
+	float4 ambientLight = float4((0.1f * texColor).rgb,0);
+	//DirectionLight diffuse
+	float3 ddir = -sun.dir;
+	float4 diffuseLight = saturate(dot(ddir, nrm)) * sun.intensity * sun.color;
 
-	return float4( (texColor * totalLight ).rgb,texColor.a);
+	//PointLight diffuse
+	float3 sdir = pointLight.pos - input.posWorld;
+	float len = length(sdir);
+	float att = 1 - clamp(len / pointLight.att, 0, 1);
+	sdir /= len;
+	diffuseLight = max(0, dot(sdir, nrm))*pointLight.intensity *att * pointLight.color + diffuseLight;
+
+	//SpotLight diffuse
+	//TODO: add spotLight
+
+	//specluar
+	float4 specularLight = float4(0, 0, 0, 0);
+
+	return ambientLight + float4( (texColor * diffuseLight).rgb,texColor.a) + specularLight;
 
 	//return tex.Sample(filter, input.uv);
 }

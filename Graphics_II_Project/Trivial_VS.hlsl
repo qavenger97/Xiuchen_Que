@@ -32,13 +32,14 @@ OUTPUT main( INPUT input )
 	float4 coord = float4(input.pos, 1);
 	float4 wv = mul(coord, worldView);
 	output.pos = mul(wv,proj);
-	output.posWorld = mul(input.pos, world);
+	float3x3 world3x3 = (float3x3)world;
+	output.posWorld = mul(input.pos, world3x3);
 	output.uv = input.uvw.xy;
-	output.normal = normalize(mul(input.normal, (float3x3)world));
+	output.normal = normalize(mul(input.normal, world3x3));
 	/*if (dot(output.normal, float3(0, 1, 0))) output.tengent = cross(output.normal, float3(1, 0, 0));
 	else
 		output.tengent =  cross(output.normal, float3(0, 1, 0));*/
-	output.tengent = normalize(mul(input.tengent, (float3x3)world));
+	output.tengent = normalize(mul(input.tengent, world3x3));
 	output.binormal = cross(output.normal, output.tengent);
 	return output;
 }

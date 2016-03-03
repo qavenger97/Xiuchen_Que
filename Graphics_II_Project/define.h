@@ -36,7 +36,7 @@ struct DirectionalLight
 	XMFLOAT4 color;
 };
 
-struct SpotLight
+struct PointLight
 {
 	XMFLOAT3 pos;
 	FLOAT att;
@@ -48,7 +48,7 @@ struct SpotLight
 struct LightBuffer
 {
 	DirectionalLight sun;
-	SpotLight spot;
+	PointLight pointLight;
 };
 
 static float DegreeToRadian(float degree)
