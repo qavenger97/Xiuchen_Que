@@ -13,6 +13,8 @@ struct ConstantPerObject
 	XMFLOAT4X4 worldMatrix;
 };
 
+
+
 struct Vertex
 {
 	XMFLOAT3 pos;
@@ -24,6 +26,24 @@ struct Vertex_m
 	XMFLOAT3 pos;
 	XMFLOAT3 normal;
 	XMFLOAT2 uv0;
+};
+
+struct DirectionalLight
+{
+	XMFLOAT3 dir;
+	FLOAT intensity;
+	XMFLOAT4 color;
+};
+
+struct SpotLight
+{
+	XMFLOAT3 pos;
+	FLOAT att;
+};
+
+struct LightBuffer
+{
+	DirectionalLight sun;
 };
 
 static float DegreeToRadian(float degree)

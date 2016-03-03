@@ -401,6 +401,7 @@ public:
 		gfx->DrawIndexed(numIndex, 0, 0);
 	}
 };
+
 class DEMO_APP
 {	
 	HINSTANCE						application;
@@ -418,7 +419,7 @@ class DEMO_APP
 	ID3D11Buffer* pIndexBuffer = 0;
 	ID3D11Buffer* pConstantBuffer = 0;
 	ID3D11Buffer* pDepthBuffer = 0;
-	
+	ID3D11Buffer* pLightsBuffer = 0;
 	ID3D11RasterizerState* pRasterizerState = 0;
 	ID3D11RasterizerState* pRasterizerState_back = 0;
 	ID3D11BlendState* pOverlay = 0;
@@ -434,6 +435,7 @@ class DEMO_APP
 	Mesh teapot;
 	Grid grid;
 	Star star;
+	LightBuffer lights;
 	// BEGIN PART 5
 	// TODO: PART 5 STEP 1
 	// TODO: PART 2 STEP 4
@@ -447,6 +449,8 @@ class DEMO_APP
 	float nearPlane = 0.01f;
 	float farPlane = 10000;
 	float FOV = 1.57079633f;
+	WORD mouseX;
+	WORD mouseY;
 public:
 	// BEGIN PART 2
 	// TODO: PART 2 STEP 1
@@ -455,6 +459,7 @@ public:
 	bool Run();
 	bool ShutDown();
 	void Resize(WORD width, WORD height);
+	void OnMouseMove(WPARAM btnState, WORD x, WORD y);
 };
 
 //************************************************************
@@ -547,7 +552,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{
 			OutputDebugString(L"Create Triangle ConstantBuffer Failed");
 		}
-
+		bd.Usage = D3D11_USAGE_DEFAULT;
+		bd.CPUAccessFlags = 0;
+		bd.ByteWidth = sizeof(lights);
+		rs = pDevice->CreateBuffer(&bd, 0, &pLightsBuffer);
+		
 		backBuffer->Release();
 	}
 
@@ -646,6 +655,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	grid.Create(pDevice);
 	teapot.Create(pDevice, L"chest.obj");
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
+
+	lights.sun.dir = XMFLOAT3(0, -1, 0);
+	lights.sun.color = XMFLOAT4(0.9f, 0.7f, 0.7f,1);
+	lights.sun.intensity = 1;
+
 }
 
 //************************************************************
@@ -680,7 +694,6 @@ bool DEMO_APP::Run()
 	memcpy(ms.pData, &cb, sizeof(cb));
 	pDeviceContext->Unmap(pConstantBuffer, 0);
 	pDeviceContext->VSSetConstantBuffers(0, 1, &pConstantBuffer);
-
 	camera.DrawSkybox(pDeviceContext);
 
 	pDeviceContext->IASetInputLayout(pLayout);
@@ -689,6 +702,7 @@ bool DEMO_APP::Run()
 
 	pDeviceContext->RSSetState(pRasterizerState);
 
+	pDeviceContext->UpdateSubresource(pLightsBuffer, 0, 0, &lights, 0, 0);
 
 	static float angle = 0;
 	angle += 0.0001f;
@@ -703,6 +717,9 @@ bool DEMO_APP::Run()
 	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
 
 	star.Draw(pDeviceContext);
+
+	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
+
 	teapot.Draw(pDeviceContext);
 	if (GetAsyncKeyState('3') & 0x01)
 	{
@@ -710,6 +727,16 @@ bool DEMO_APP::Run()
 	}
 
 
+	if (GetAsyncKeyState(VK_F2))
+	{
+		FOV += (FLOAT)timer.Delta();
+		camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
+	}
+	if (GetAsyncKeyState(VK_F1))
+	{
+		FOV -= (FLOAT)timer.Delta();
+		camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
+	}
 
 	grid.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
@@ -731,6 +758,7 @@ bool DEMO_APP::ShutDown()
 	if (pOverlay)pOverlay->Release();
 	if (pRasterizerState)pRasterizerState->Release();
 	if (pDepthBuffer)pDepthBuffer->Release();
+	if (pLightsBuffer)pLightsBuffer->Release();
 	if (pConstantBuffer)pConstantBuffer->Release();
 	if (pIndexBuffer)pIndexBuffer->Release();
 	if (pVertexBuffer) pVertexBuffer->Release();
@@ -782,6 +810,24 @@ void DEMO_APP::Resize(WORD width, WORD height)
 	}
 }
 
+void DEMO_APP::OnMouseMove(WPARAM btnState, WORD x, WORD y)
+{
+	if (btnState & VK_RBUTTON)
+	{
+		float dx = DegreeToRadian(x - (float)mouseX);
+		float dy = DegreeToRadian(y - (float)mouseY);
+		XMMATRIX rot = XMMatrixRotationZ(dx);
+		XMMATRIX rotZ = XMMatrixRotationX(dy);
+		rot = rot * rotZ;
+		XMVECTOR dir = XMLoadFloat3(&lights.sun.dir);
+		dir = XMVector3Rotate(dir, XMQuaternionRotationMatrix(rot));
+		XMStoreFloat3(&lights.sun.dir, dir);
+	}
+	
+	mouseX = x;
+	mouseY = y;
+}
+
 //************************************************************
 //************ WINDOWS RELATED *******************************
 //************************************************************
@@ -815,7 +861,8 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         case ( WM_DESTROY ): { PostQuitMessage( 0 ); }
         break;
 		case WM_MOUSEMOVE:
-			camera.OnMouseMove(wParam, LOWORD(lParam), HIWORD(lParam));
+				camera.OnMouseMove(wParam, LOWORD(lParam), HIWORD(lParam));
+				g_myApp->OnMouseMove(wParam, LOWORD(lParam), HIWORD(lParam));
 			break;
 		case WM_LBUTTONUP:
 			camera.OnMouseUp(wParam, LOWORD(lParam), HIWORD(lParam));

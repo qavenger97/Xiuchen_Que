@@ -9,10 +9,9 @@ struct INPUT
 
 struct OUTPUT
 {
-	float4 projectedCoordinate : SV_POSITION;
-	float4 color			   : COLOR;
+	float4 pos : SV_POSITION;
+	float3 normal			   : NORMAL;
 	float2 uv				   : TEXCOORD0;
-	float2 index			   : TEXCOORD1;
 };
 
 // TODO: PART 3 STEP 2a
@@ -25,9 +24,8 @@ OUTPUT main( INPUT input )
 {
 	OUTPUT output = (OUTPUT)0;
 	float4 coord = float4(input.coordinate, 1);
-	output.projectedCoordinate = mul(coord, worldViewProj);
+	output.pos = mul(coord, worldViewProj);
 	output.uv = input.uvw.xy;
-
-	output.color = (float4)1;
+	output.normal = input.normal;
 	return output;
 }

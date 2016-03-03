@@ -31,6 +31,7 @@ void Camera::SetProjection(float FOV, float width, float height, float nearZ, fl
 
 void Camera::Update(float dt)
 {
+	if (GetAsyncKeyState(VK_SHIFT))dt *= 10;
 	if (GetAsyncKeyState('W'))
 	{
 		Forward(dt);
@@ -56,10 +57,20 @@ void Camera::Update(float dt)
 		Fly(dt);
 	}
 
+	if (GetAsyncKeyState(VK_SPACE))
+	{
+		Fly(dt);
+	}
 	if (GetAsyncKeyState('C'))
 	{
 		Fly(-dt);
 	}
+
+	if (GetAsyncKeyState(VK_CONTROL))
+	{
+		Fly(-dt);
+	}
+
 
 	if (GetAsyncKeyState(VK_LEFT))
 	{
@@ -100,13 +111,14 @@ void Camera::OnMouseUp(WPARAM btnState, WORD x, WORD y)
 
 void Camera::OnMouseMove(WPARAM btnState, WORD x, WORD y)
 {
-	if (btnState && MK_LBUTTON)
+	if (btnState & WM_LBUTTONDOWN)
 	{
 		float dx = DegreeToRadian(x - (float)mouseX);
 		float dy = DegreeToRadian(y - (float)mouseY);
 		Yaw(dx);
 		Pitch(dy);
 	}
+	
 	mouseX = x;
 	mouseY = y;
 }
