@@ -13,7 +13,7 @@ struct OUTPUT
 	float4 pos					: SV_POSITION;
 	float3 normal				: NORMAL;
 	float2 uv					: TEXCOORD0;
-	float3 posView				: TEXCOORD1;
+	float3 posWorld				: TEXCOORD1;
 	float3 tengent				: TEXCOORD2;
 	float3 binormal				: TEXCOORD3;
 };
@@ -32,7 +32,7 @@ OUTPUT main( INPUT input )
 	float4 coord = float4(input.pos, 1);
 	float4 wv = mul(coord, worldView);
 	output.pos = mul(wv,proj);
-	output.posView = input.pos;
+	output.posWorld = mul(input.pos, world);
 	output.uv = input.uvw.xy;
 	output.normal = normalize(mul(input.normal, (float3x3)world));
 	/*if (dot(output.normal, float3(0, 1, 0))) output.tengent = cross(output.normal, float3(1, 0, 0));

@@ -22,6 +22,7 @@
     <ClInclude Include="Camera.h" />
     <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="define.h" />
+    <ClInclude Include="Material.h" />
     <ClInclude Include="MeshLoader.h" />
     <ClInclude Include="SamplerStates.h" />
     <ClInclude Include="Shaders.h" />
@@ -118,6 +119,7 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Material.cpp" />
     <ClCompile Include="MeshLoader.cpp" />
     <ClCompile Include="SamplerStates.cpp" />
     <ClCompile Include="Shaders.cpp" />

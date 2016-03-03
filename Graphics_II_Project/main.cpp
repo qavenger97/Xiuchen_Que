@@ -44,7 +44,7 @@ public:
 	ObjectBase(){}
 	ObjectBase(int numVerts) :numVerts(numVerts)
 	{
-		v = new Vertex[numVerts];
+		v = new Vertex_m[numVerts];
 		XMMATRIX I = XMMatrixIdentity();
 		XMStoreFloat4x4(&transform, I);
 	}
@@ -55,7 +55,7 @@ public:
 		ZeroMemory(&bd, sizeof(bd));
 		bd.Usage = D3D11_USAGE_IMMUTABLE;
 
-		bd.ByteWidth = sizeof(Vertex)*numVerts;
+		bd.ByteWidth = sizeof(Vertex_m)*numVerts;
 		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		bd.CPUAccessFlags = 0;
 		D3D11_SUBRESOURCE_DATA sd;
@@ -81,7 +81,7 @@ public:
 
 	void Draw(ID3D11DeviceContext* gfx)
 	{
-		UINT stride = sizeof Vertex;
+		UINT stride = sizeof Vertex_m;
 		UINT offset = 0;
 
 		gfx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -101,7 +101,7 @@ public:
 public:
 	XMFLOAT4X4 transform;
 protected:
-	Vertex* v = 0;
+	Vertex_m* v = 0;
 	UINT* indices = 0;
 	ID3D11Buffer* pVertexBuffer = 0;
 	ID3D11Buffer* pIndexBuffer= 0;
@@ -122,55 +122,65 @@ public:
 		v[0].pos.x = 0;
 		v[0].pos.y = 0;
 		v[0].pos.z = -halfthickness;
-		v[0].color.x = 0.2f;
-		v[0].color.y = 0.4f;
-		v[0].color.z = 1;
+		v[0].normal.x = 0;
+		v[0].normal.y = 0;
+		v[0].normal.z = -1;
+		v[0].uv0.x = 0.5f;
+		v[0].uv0.y = 0.5f;
 		v[11].pos.x = 0;
 		v[11].pos.y = 0;
 		v[11].pos.z = halfthickness;
-		v[11].color.x = 1;
-		v[11].color.y = 0.4f;
-		v[11].color.z = 0.2f;
+		v[11].normal.x = 0;
+		v[11].normal.y = 0;
+		v[11].normal.z = 1;
+		v[11].uv0.x = 0.5f;
+		v[11].uv0.y = 0.5f;
 
 		for (int c = 0; c < 5; c++)
 		{
 			int i = (c << 1) | 1;
 			float angle1 = da*PI_2*(c<<1);
 			float angle2 = da*PI_2*i;
-			v[i    ].pos.x = cosf(angle1) * radiusOut;
-			v[i    ].pos.y = sinf(angle1) * radiusOut;
+			float cosA = cosf(angle1);
+			float sinA = sinf(angle1);
+			float cosB = cosf(angle2);
+			float sinB = sinf(angle2);
+			float r = radiusIn / radiusOut;
+			v[i    ].pos.x = cosA * radiusOut;
+			v[i    ].pos.y = sinA * radiusOut;
 			v[i    ].pos.z = -halfthickness;
+			v[i    ].normal.x = 0;
+			v[i    ].normal.y = 0;
+			v[i    ].normal.z = -1;
+			v[i    ].uv0.x = cosA;
+			v[i	   ].uv0.y = -sinA;
 
-			v[i + 1].pos.x = cosf(angle2) * radiusIn;
-			v[i + 1].pos.y = sinf(angle2) * radiusIn;
+			v[i + 1].pos.x = cosB * radiusIn;
+			v[i + 1].pos.y = sinB * radiusIn;
 			v[i + 1].pos.z = -halfthickness;
+			v[i + 1].normal.x = 0;
+			v[i + 1].normal.y = 0;
+			v[i + 1].normal.z = -1;
+			v[i + 1].uv0.x = cosB * r;
+			v[i + 1].uv0.y = -sinB * r;
 
-			v[i + 11].pos.x = cosf(angle1) * radiusOut;
-			v[i + 11].pos.y = sinf(angle1) * radiusOut;
+			v[i + 11].pos.x = cosA * radiusOut;
+			v[i + 11].pos.y = sinA * radiusOut;
 			v[i + 11].pos.z = halfthickness;
+			v[i + 11].normal.x = 0;
+			v[i + 11].normal.y = 0;
+			v[i + 11].normal.z = 1;
+			v[i + 11].uv0.x = cosA;
+			v[i + 11].uv0.y = -sinA;
 
-			v[i + 12].pos.x = cosf(angle2) * radiusIn;
-			v[i + 12].pos.y = sinf(angle2) * radiusIn;
+			v[i + 12].pos.x = cosB * radiusIn;
+			v[i + 12].pos.y = sinB * radiusIn;
 			v[i + 12].pos.z = halfthickness;
-
-			float color = (1) * 0.2f;
-
-			v[i].color.x = color;
-			v[i + 1].color.x = color;
-			v[i + 11].color.x = color;
-			v[i + 12].color.x = color;
-
-			color = (2) * 0.2f;
-			v[i].color.y = color;
-			v[i + 1].color.y = color;
-			v[i + 11].color.y = color;
-			v[i + 12].color.y = color;
-
-			color = (3) * 0.2f;
-			v[i].color.z = color;
-			v[i + 1].color.z = color;
-			v[i + 11].color.z = color;
-			v[i + 12].color.z = color;
+			v[i + 12].normal.x = 0;
+			v[i + 12].normal.y = 0;
+			v[i + 12].normal.z = 1;
+			v[i + 12].uv0.x = cosB * r;
+			v[i + 12].uv0.y = -sinB * r;
 		}
 
 		for (UINT c = 0; c < 10; c++)
@@ -713,9 +723,10 @@ bool DEMO_APP::Run()
 	static float angle = 0;
 	angle += 0.0001f;
 	if (angle >= XM_2PI)angle = 0;
-	XMStoreFloat4x4(&cb.worldMatrix, XMMatrixRotationY(angle) * XMLoadFloat4x4(&star.transform) * camera.GetViewMatrix());
+	XMMATRIX t = XMMatrixRotationY(angle) * XMLoadFloat4x4(&star.transform);
+	XMStoreFloat4x4(&cb.world, t);
+	XMStoreFloat4x4(&cb.worldMatrix, t * camera.GetViewMatrix());
 	XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
-
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 	memcpy(ms.pData, &cb, sizeof(cb));
 	pDeviceContext->Unmap(pConstantBuffer, 0);
