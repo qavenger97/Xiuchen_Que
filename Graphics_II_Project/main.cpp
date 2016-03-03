@@ -364,7 +364,8 @@ public:
 		{
 			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0,
 			"TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0,
-			"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0
+			"TEXCOORD", 1, DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0,
+			"TEXCOORD", 2, DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0
 		};
 		gfx->CreateInputLayout(layout, ARRAYSIZE(layout), Trivial_VS, ARRAYSIZE(Trivial_VS), &pLayout);
 	}
@@ -391,6 +392,7 @@ public:
 
 		D3D11_MAPPED_SUBRESOURCE mr = {};
 		ConstantPerObject cb;
+		cb.world = transform;
 		XMStoreFloat4x4(&cb.worldMatrix,XMLoadFloat4x4(&transform) * camera.GetViewMatrix());
 		XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
 		gfx->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
@@ -602,7 +604,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	{
 		"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0,
 		"TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0,
-		"TEXCOORD", 1, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0
+		"TEXCOORD", 1, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0,
+		"TEXCOORD", 2, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0
 	};
 
 
@@ -641,7 +644,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	pDevice->CreateBlendState(&blendDesc, &pOverlay);
 
 	CreateDDSTextureFromFile(pDevice, L"chest_base.dds", nullptr, &pSRV);
-	CreateDDSTextureFromFile(pDevice, L"numbers_test.dds", nullptr, &pSRV1);
+	CreateDDSTextureFromFile(pDevice, L"chest_normal.dds", nullptr, &pSRV1);
 
 	samplers.CreateSamplerStates(pDevice);
 
@@ -649,9 +652,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	pDeviceContext->OMSetBlendState(pOverlay, factor, 0xffffffff);
 	pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
 	pDeviceContext->RSSetViewports(1, &viewPort);
-	pDeviceContext->PSSetShaderResources(0, 1, &pSRV1);
 	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
 	star.Create(pDevice);
+	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
 	teapot.Create(pDevice, L"chest.obj");
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
@@ -710,7 +713,7 @@ bool DEMO_APP::Run()
 	static float angle = 0;
 	angle += 0.0001f;
 	if (angle >= XM_2PI)angle = 0;
-	XMStoreFloat4x4(&cb.worldMatrix, XMMatrixRotationY(angle) * camera.GetViewMatrix());
+	XMStoreFloat4x4(&cb.worldMatrix, XMMatrixRotationY(angle) * XMLoadFloat4x4(&star.transform) * camera.GetViewMatrix());
 	XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
 
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
@@ -720,6 +723,7 @@ bool DEMO_APP::Run()
 
 
 	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
+	pDeviceContext->PSSetShaderResources(1, 1, &pSRV1);
 
 	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
 
@@ -772,24 +776,38 @@ bool DEMO_APP::Run()
 
 	if (GetAsyncKeyState(VK_UP))
 	{
-		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-		XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
-		d.m128_f32[2] = (float)timer.Delta() * 20;
-		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
-		d.m128_f32[1] = 0;
-		d.m128_f32[0] = 0;
-		XMStoreFloat3(&lights.spot.pos, d + pos);
+		if (GetAsyncKeyState(VK_SHIFT))
+		{
+			lights.spot.pos.y += (float)timer.Delta() * 20;
+		}
+		else
+		{
+			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+			XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+			d.m128_f32[2] = (float)timer.Delta() * 20;
+			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+			d.m128_f32[1] = 0;
+			d.m128_f32[0] = 0;
+			XMStoreFloat3(&lights.spot.pos, d + pos);
+		}
 	}
 
 	if (GetAsyncKeyState(VK_DOWN))
 	{
-		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-		XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
-		d.m128_f32[2] = -(float)timer.Delta() * 20;
-		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
-		d.m128_f32[1] = 0;
-		d.m128_f32[0] = 0;
-		XMStoreFloat3(&lights.spot.pos, d + pos);
+		if (GetAsyncKeyState(VK_SHIFT))
+		{
+			lights.spot.pos.y -= (float)timer.Delta() * 20;
+		}
+		else
+		{
+			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+			XMVECTOR pos = XMLoadFloat3(&lights.spot.pos);
+			d.m128_f32[2] = -(float)timer.Delta() * 20;
+			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+			d.m128_f32[1] = 0;
+			d.m128_f32[0] = 0;
+			XMStoreFloat3(&lights.spot.pos, d + pos);
+		}
 	}
 	grid.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
@@ -803,8 +821,8 @@ bool DEMO_APP::Run()
 bool DEMO_APP::ShutDown()
 {
 	if (pRasterizerState_back)pRasterizerState_back->Release();
-	if (pSRV1)pSRV1->Release();
 	if (pSRV)pSRV->Release();
+	if (pSRV1)pSRV1->Release();
 	if (pLayout)pLayout->Release();
 	if (ps)ps->Release();
 	if (vs)vs->Release();
@@ -924,7 +942,15 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 			camera.OnMouseDown(wParam, LOWORD(lParam), HIWORD(lParam));
 			break;
 		case WM_SIZE:
-			g_myApp->Resize(LOWORD(lParam), HIWORD(lParam));
+			switch (wParam)
+			{
+			case SIZE_MAXIMIZED:
+			case SIZE_RESTORED:
+				g_myApp->Resize(LOWORD(lParam), HIWORD(lParam));
+				break;
+			default:
+				break;
+			}
 			break;
     }
     return DefWindowProc( hWnd, message, wParam, lParam );

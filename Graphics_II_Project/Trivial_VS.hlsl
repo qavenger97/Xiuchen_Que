@@ -2,9 +2,10 @@
 
 struct INPUT
 {
-	float3 pos : POSITION;
-	float3 normal :		TEXCOORD0;
-	float2 uvw	  :		TEXCOORD1;
+	float3 pos		:		POSITION;
+	float3 normal	:		TEXCOORD0;
+	float3 uvw		:		TEXCOORD1;
+	float3 tengent	:		TEXCOORD2;
 };
 
 struct OUTPUT
@@ -13,12 +14,15 @@ struct OUTPUT
 	float3 normal				: NORMAL;
 	float2 uv					: TEXCOORD0;
 	float3 posView				: TEXCOORD1;
+	float3 tengent				: TEXCOORD2;
+	float3 binormal				: TEXCOORD3;
 };
 
 // TODO: PART 3 STEP 2a
 cbuffer WVP : register( b0 )
 {
 	float4x4 worldView;
+	float4x4 world;
 	float4x4 proj;
 };
 
@@ -30,6 +34,13 @@ OUTPUT main( INPUT input )
 	output.pos = mul(wv,proj);
 	output.posView = input.pos;
 	output.uv = input.uvw.xy;
-	output.normal = input.normal;
+	output.normal = normalize(mul(input.normal, (float3x3)world));
+	/*if (dot(output.normal, float3(0, 1, 0))) output.tengent = cross(output.normal, float3(1, 0, 0));
+	else
+		output.tengent =  cross(output.normal, float3(0, 1, 0));*/
+	output.tengent = normalize(mul(input.tengent, (float3x3)world));
+	output.binormal = cross(output.normal, output.tengent);
 	return output;
 }
+
+//cross(float3(1, 0, 0),output.normal);
