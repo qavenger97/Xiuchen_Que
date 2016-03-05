@@ -440,7 +440,7 @@ class DEMO_APP
 	ID3D11InputLayout* pLayout = 0;
 	ID3D11VertexShader* vs = 0;
 	ID3D11PixelShader* ps = 0;
-
+	ID3D11GeometryShader* gs = 0;
 	ID3D11ShaderResourceView* pSRV = 0;
 	ID3D11ShaderResourceView* pSRV1 = 0;
 	SamplerStates samplers;
@@ -509,6 +509,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		sd.BufferDesc.Width = BACKBUFFER_WIDTH;
 		sd.BufferDesc.Height = BACKBUFFER_HEIGHT;
 		sd.SampleDesc.Count = 1;
+		//sd.SampleDesc.Quality = 8;
 		sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		camera.SetProjection(FOV, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT, nearPlane, farPlane);
 		UINT flag = 0;
@@ -571,6 +572,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	td.Usage = D3D11_USAGE_DEFAULT;
 	td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 	td.SampleDesc.Count = 1;
+	//td.SampleDesc.Quality = 8;
 	rs = pDevice->CreateTexture2D(&td, 0, &depthBuffer);
 	if (rs != S_OK)
 	{
@@ -582,6 +584,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	rasterDesc.FillMode = D3D11_FILL_SOLID;
 	rasterDesc.CullMode = D3D11_CULL_BACK;
 	rasterDesc.FrontCounterClockwise = TRUE;
+	rasterDesc.MultisampleEnable = true;
 	pDevice->CreateRasterizerState(&rasterDesc, &pRasterizerState);
 
 	rasterDesc.CullMode = D3D11_CULL_FRONT;
@@ -662,7 +665,7 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	teapot.Create(pDevice, L"tank.obj");
+	teapot.Create(pDevice, L"chest.obj");
 
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 
@@ -677,8 +680,8 @@ void DEMO_APP::InitResources()
 
 	lights.spotLight.color = XMFLOAT4(1, 1, 1, 1);
 	lights.spotLight.innerAtt = 0.99f;
-	lights.spotLight.outerAtt = 0.96f;
-	lights.spotLight.range = 5;
+	lights.spotLight.outerAtt = 0.92f;
+	lights.spotLight.range = 20;
 	lights.spotLight.intensity = 0.5f;
 }
 bool DEMO_APP::Run()
