@@ -51,19 +51,12 @@ void Camera::Update(float dt)
 		Strafe(dt);
 	}
 
-	if (GetAsyncKeyState('F'))
-	{
-		Fly(dt);
-	}
 
 	if (GetAsyncKeyState(VK_SPACE))
 	{
 		Fly(dt);
 	}
-	if (GetAsyncKeyState('C'))
-	{
-		Fly(-dt);
-	}
+
 
 	if (GetAsyncKeyState(VK_CONTROL))
 	{

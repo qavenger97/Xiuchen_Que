@@ -223,7 +223,7 @@ void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex_m>
 
 		if (XMVector3Dot(newN, identity.r[1]).m128_f32[0] == 1)
 		{
-			XMStoreFloat3(&o.tengent,XMVector3Cross(identity.r[0], newN));
+			XMStoreFloat3(&o.tengent, XMVector3Cross(identity.r[0], newN));
 		}
 		else
 		{

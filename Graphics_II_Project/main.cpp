@@ -403,9 +403,11 @@ public:
 
 		D3D11_MAPPED_SUBRESOURCE mr = {};
 		ConstantPerObject cb;
-		cb.world = transform;
 		XMStoreFloat4x4(&cb.worldMatrix,XMLoadFloat4x4(&transform) * camera.GetViewMatrix());
+		cb.world = transform;
 		XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
+		XMStoreFloat4x4(&cb.view, camera.GetViewMatrixInverse());
+
 		gfx->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
 		memcpy(mr.pData, &cb, sizeof(cb));
 		gfx->Unmap(pConstantBuffer, 0);
@@ -443,6 +445,7 @@ class DEMO_APP
 	ID3D11GeometryShader* gs = 0;
 	ID3D11ShaderResourceView* pSRV = 0;
 	ID3D11ShaderResourceView* pSRV1 = 0;
+	ID3D11ShaderResourceView* pSRV2 = 0;
 	SamplerStates samplers;
 	ConstantPerObject cb;
 	Mesh teapot;
@@ -644,8 +647,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	pDevice->CreateBlendState(&blendDesc, &pOverlay);
 
-	CreateDDSTextureFromFile(pDevice, L"chest_base.dds", nullptr, &pSRV);
-	CreateDDSTextureFromFile(pDevice, L"chest_normal.dds", nullptr, &pSRV1);
+	CreateDDSTextureFromFile(pDevice, L"MAT_D.dds", nullptr, &pSRV);
+	CreateDDSTextureFromFile(pDevice, L"MAT_N.dds", nullptr, &pSRV1);
+	CreateDDSTextureFromFile(pDevice, L"MAT_S.dds", nullptr, &pSRV2);
 
 	samplers.CreateSamplerStates(pDevice);
 	InitResources();
@@ -665,31 +669,31 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	teapot.Create(pDevice, L"chest.obj");
-
+	teapot.Create(pDevice, L"Plane.obj");
+	
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 
-	lights.sun.dir = XMFLOAT3(0, -1, 0);
-	lights.sun.color = XMFLOAT4(0.9f, 0.7f, 0.7f, 1);
-	lights.sun.intensity = 0.7f;
+	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
+	lights.light[0].dir = XMFLOAT4(0, -1, 0, 0);
+	lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 1);
+	lights.light[0].att = XMFLOAT4(0, 0, 0, 0);
 
-	lights.pointLight.pos = XMFLOAT3(0, 0.1f, 0);
-	lights.pointLight.color = XMFLOAT4(0.3f, 0.6f, 0.5f, 1);
-	lights.pointLight.intensity = 1;
-	lights.pointLight.att = 6;
+	lights.light[1].pos = XMFLOAT4(0, 0.1f, 0, 1);
+	lights.light[1].color = XMFLOAT4(0.2f, 0.5f, 0.6f, 1);
+	lights.light[1].dir = XMFLOAT4(0, 0, 0, 0);
+	lights.light[1].att = XMFLOAT4(0, 0, 3, 1);
 
-	lights.spotLight.color = XMFLOAT4(1, 1, 1, 1);
-	lights.spotLight.innerAtt = 0.99f;
-	lights.spotLight.outerAtt = 0.92f;
-	lights.spotLight.range = 20;
-	lights.spotLight.intensity = 0.5f;
+	lights.light[2].pos = XMFLOAT4(0, 0, 0, 2);
+	lights.light[2].color = XMFLOAT4(1, 1, 1, 1);
+	lights.light[2].att = XMFLOAT4(0.99f, 0.92f, 20, 2);
 }
 bool DEMO_APP::Run()
 {
 	timer.Signal();
 	camera.Update((float)timer.Delta());
-	XMStoreFloat3(&lights.spotLight.dir, camera.GetViewMatrixInverse().r[2]);
-	XMStoreFloat3(&lights.spotLight.pos, camera.GetPos().r[3]);
+	XMStoreFloat4(&lights.light[2].dir, camera.GetViewMatrixInverse().r[2]);
+	XMStoreFloat4(&lights.light[2].pos, camera.GetPos().r[3]);
+	lights.light[2].pos.w = 2;
 	pDeviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
 	D3D11_MAPPED_SUBRESOURCE ms;
@@ -705,7 +709,6 @@ bool DEMO_APP::Run()
 	}
 
 	XMStoreFloat4x4(&cb.worldMatrix, camera.GetPos() * camera.GetViewProjectionMatrix());
-
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 	memcpy(ms.pData, &cb, sizeof(cb));
 	pDeviceContext->Unmap(pConstantBuffer, 0);
@@ -735,7 +738,7 @@ bool DEMO_APP::Run()
 
 	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
 	pDeviceContext->PSSetShaderResources(1, 1, &pSRV1);
-
+	pDeviceContext->PSSetShaderResources(2, 1, &pSRV2);
 	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
 
 	star.Draw(pDeviceContext);
@@ -765,41 +768,42 @@ bool DEMO_APP::Run()
 	if (GetAsyncKeyState(VK_LEFT))
 	{	
 		XMVECTOR d = XMVectorSet(0,0,0,0);
-		XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
+		XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
 		d.m128_f32[0] = -(float)timer.Delta()*10;
 		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 		d.m128_f32[1] = 0;
 		d.m128_f32[2] = 0;
-		XMStoreFloat3(&lights.pointLight.pos, d + pos);
+		XMStoreFloat4(&lights.light[1].pos, d + pos);
+		lights.light[1].pos.w = 1;
 	
+	}
+
+	if (GetAsyncKeyState('F') & 0x01)
+	{
+		lights.light[2].color.w = lights.light[2].color.w == 0 ? 1.0f : 0 ;
 	}
 
 	if (GetAsyncKeyState(VK_RIGHT))
 	{
 		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-		XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
-		d.m128_f32[0] = (float)timer.Delta()*10;
+		XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
+		d.m128_f32[0] = (float)timer.Delta() * 10;
 		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 		d.m128_f32[1] = 0;
 		d.m128_f32[2] = 0;
-		XMStoreFloat3(&lights.pointLight.pos, d + pos);
+		XMStoreFloat4(&lights.light[1].pos, d + pos);
+		lights.light[1].pos.w = 1;
 	}
 
 	if (GetAsyncKeyState(VK_UP))
 	{
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.pointLight.pos.y += (float)timer.Delta()*10;
+			lights.light[1].pos.y += (float)timer.Delta()*10;
 		}
 		else
 		{
-			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-			XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
-			d.m128_f32[2] = (float)timer.Delta()*10;
-			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
-			d.m128_f32[1] = 0;
-			d.m128_f32[0] = 0;
-			XMStoreFloat3(&lights.pointLight.pos, d + pos);
+			lights.light[1].pos.z -= (float)timer.Delta() * 5;
 		}
 	}
 
@@ -807,17 +811,11 @@ bool DEMO_APP::Run()
 	{
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.pointLight.pos.y -= (float)timer.Delta()*10;
+			lights.light[1].pos.y -= (float)timer.Delta() * 10;
 		}
 		else
 		{
-			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-			XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
-			d.m128_f32[2] = -(float)timer.Delta()*10;
-			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
-			d.m128_f32[1] = 0;
-			d.m128_f32[0] = 0;
-			XMStoreFloat3(&lights.pointLight.pos, d + pos);
+			lights.light[1].pos.z += (float)timer.Delta() * 5;
 		}
 	}
 	grid.Draw(pDeviceContext);
@@ -834,6 +832,7 @@ bool DEMO_APP::ShutDown()
 	if (pRasterizerState_back)pRasterizerState_back->Release();
 	if (pSRV)pSRV->Release();
 	if (pSRV1)pSRV1->Release();
+	if (pSRV2)pSRV2->Release();
 	if (pLayout)pLayout->Release();
 	if (ps)ps->Release();
 	if (vs)vs->Release();
@@ -898,14 +897,13 @@ void DEMO_APP::OnMouseMove(WPARAM btnState, WORD x, WORD y)
 	{
 		float dx = DegreeToRadian(x - (float)mouseX);
 		float dy = DegreeToRadian(y - (float)mouseY);
-		XMMATRIX rot = XMMatrixRotationZ(dx);
+		XMMATRIX rot = XMMatrixRotationY(dx);
 		XMMATRIX rotZ = XMMatrixRotationX(dy);
 		rot = rot * rotZ;
-		XMVECTOR dir = XMLoadFloat3(&lights.sun.dir);
+		XMVECTOR dir = XMLoadFloat4(&lights.light[0].dir);
 		dir = XMVector3Rotate(dir, XMQuaternionRotationMatrix(rot));
-		XMStoreFloat3(&lights.sun.dir, dir);
+		XMStoreFloat4(&lights.light[0].dir, dir);
 	}
-
 	mouseX = x;
 	mouseY = y;
 }
