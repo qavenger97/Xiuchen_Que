@@ -339,7 +339,8 @@ class Mesh
 public:
 	Mesh()
 	{
-		XMStoreFloat4x4(&transform, XMMatrixScaling(0.2f,0.2f,0.2f));
+		XMStoreFloat4x4(&transform, XMMatrixIdentity());
+		XMStoreFloat4x4(&transform, XMMatrixScaling(0.5f, 0.5f, 0.5f));
 	}
 	void Create(ID3D11Device* gfx, const wchar_t* filePath)
 	{
@@ -448,25 +449,14 @@ class DEMO_APP
 	Grid grid;
 	Star star;
 	LightBuffer lights;
-	// BEGIN PART 5
-	// TODO: PART 5 STEP 1
-	// TODO: PART 2 STEP 4
-	
-	// BEGIN PART 3
-	// TODO: PART 3 STEP 1
-
-	// TODO: PART 3 STEP 2b
-	
-	// TODO: PART 3 STEP 4a
 	float nearPlane = 0.01f;
 	float farPlane = 10000;
-	float FOV = 1.57079633f;
+	float FOV = DegreeToRadian(75);
 	WORD mouseX;
 	WORD mouseY;
-public:
-	// BEGIN PART 2
-	// TODO: PART 2 STEP 1
-	
+private:
+	void InitResources();
+public:	
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
 	bool ShutDown();
@@ -479,6 +469,7 @@ public:
 //************************************************************
 
 DEMO_APP* g_myApp;
+
 DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 {
 	// ****************** BEGIN WARNING ***********************// 
@@ -508,7 +499,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ShowWindow(window, SW_SHOW);
 	//********************* END WARNING ************************//
 	{
-		// TODO: PART 1 STEP 3a
 		DXGI_SWAP_CHAIN_DESC sd;
 		ZeroMemory(&sd, sizeof(sd));
 		sd.BufferCount = 1;
@@ -532,14 +522,12 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 			OutputDebugString(L"Craete swapchain and device failed\n");
 		}
 
-		// TODO: PART 1 STEP 4
 		ID3D11Texture2D* backBuffer;
 		rs = pSwapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
 		if (rs != S_OK)
 		{
 			OutputDebugString(L"Get Backbuffer failed\n");
 		}
-		// TODO: PART 1 STEP 5
 		ZeroMemory(&viewPort, sizeof(viewPort));
 		viewPort.Height = BACKBUFFER_HEIGHT;
 		viewPort.Width = BACKBUFFER_WIDTH;
@@ -657,39 +645,48 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	CreateDDSTextureFromFile(pDevice, L"chest_normal.dds", nullptr, &pSRV1);
 
 	samplers.CreateSamplerStates(pDevice);
-
+	InitResources();
 	float factor[] = { 1,1,1,1 };
 	pDeviceContext->OMSetBlendState(pOverlay, factor, 0xffffffff);
 	pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
 	pDeviceContext->RSSetViewports(1, &viewPort);
 	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
-	star.Create(pDevice);
-	star.transform.m[3][0] = 2;
-	grid.Create(pDevice);
-	teapot.Create(pDevice, L"chest.obj");
-	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
-
-	lights.sun.dir = XMFLOAT3(0, -1, 0);
-	lights.sun.color = XMFLOAT4(0.9f, 0.7f, 0.7f,1);
-	lights.sun.intensity = 1;
-	lights.pointLight.pos = XMFLOAT3(0, 1, 0);
-	lights.pointLight.color = XMFLOAT4(0.3f, 0.6f, 0.5f, 1);
-	lights.pointLight.intensity = 1;
-	lights.pointLight.att = 15;
+	
 }
 
 //************************************************************
 //************ EXECUTION *************************************
 //************************************************************
+void DEMO_APP::InitResources()
+{
+	star.Create(pDevice);
+	star.transform.m[3][0] = 2;
+	grid.Create(pDevice);
+	teapot.Create(pDevice, L"tank.obj");
 
+	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
+
+	lights.sun.dir = XMFLOAT3(0, -1, 0);
+	lights.sun.color = XMFLOAT4(0.9f, 0.7f, 0.7f, 1);
+	lights.sun.intensity = 0.7f;
+
+	lights.pointLight.pos = XMFLOAT3(0, 0.1f, 0);
+	lights.pointLight.color = XMFLOAT4(0.3f, 0.6f, 0.5f, 1);
+	lights.pointLight.intensity = 1;
+	lights.pointLight.att = 6;
+
+	lights.spotLight.color = XMFLOAT4(1, 1, 1, 1);
+	lights.spotLight.innerAtt = 0.99f;
+	lights.spotLight.outerAtt = 0.96f;
+	lights.spotLight.range = 5;
+	lights.spotLight.intensity = 0.5f;
+}
 bool DEMO_APP::Run()
 {
 	timer.Signal();
 	camera.Update((float)timer.Delta());
-	
-	//static const float clearColor[] = { 0.1f, 0.1f, 1.0f, 1.0f };
-	//pDeviceContext->ClearRenderTargetView(pRTV, clearColor);
-
+	XMStoreFloat3(&lights.spotLight.dir, camera.GetViewMatrixInverse().r[2]);
+	XMStoreFloat3(&lights.spotLight.pos, camera.GetPos().r[3]);
 	pDeviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
 	D3D11_MAPPED_SUBRESOURCE ms;
@@ -766,7 +763,7 @@ bool DEMO_APP::Run()
 	{	
 		XMVECTOR d = XMVectorSet(0,0,0,0);
 		XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
-		d.m128_f32[0] = -(float)timer.Delta() * 20;
+		d.m128_f32[0] = -(float)timer.Delta()*10;
 		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 		d.m128_f32[1] = 0;
 		d.m128_f32[2] = 0;
@@ -778,7 +775,7 @@ bool DEMO_APP::Run()
 	{
 		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
 		XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
-		d.m128_f32[0] = (float)timer.Delta() * 20;
+		d.m128_f32[0] = (float)timer.Delta()*10;
 		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 		d.m128_f32[1] = 0;
 		d.m128_f32[2] = 0;
@@ -789,13 +786,13 @@ bool DEMO_APP::Run()
 	{
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.pointLight.pos.y += (float)timer.Delta() * 20;
+			lights.pointLight.pos.y += (float)timer.Delta()*10;
 		}
 		else
 		{
 			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
 			XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
-			d.m128_f32[2] = (float)timer.Delta() * 20;
+			d.m128_f32[2] = (float)timer.Delta()*10;
 			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 			d.m128_f32[1] = 0;
 			d.m128_f32[0] = 0;
@@ -807,13 +804,13 @@ bool DEMO_APP::Run()
 	{
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.pointLight.pos.y -= (float)timer.Delta() * 20;
+			lights.pointLight.pos.y -= (float)timer.Delta()*10;
 		}
 		else
 		{
 			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
 			XMVECTOR pos = XMLoadFloat3(&lights.pointLight.pos);
-			d.m128_f32[2] = -(float)timer.Delta() * 20;
+			d.m128_f32[2] = -(float)timer.Delta()*10;
 			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 			d.m128_f32[1] = 0;
 			d.m128_f32[0] = 0;
