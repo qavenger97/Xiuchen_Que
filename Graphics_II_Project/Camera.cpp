@@ -25,11 +25,16 @@ void Camera::SetCubemap(ID3D11Device* gfx, const wchar_t * filePath)
 
 void Camera::SetProjection(float FOV, float width, float height, float nearZ, float farZ)
 {
-	XMStoreFloat4x4(&proj, XMMatrixPerspectiveFovLH(FOV, width / height, nearZ, farZ));
+	float aspectRatio = width / height;
+	XMStoreFloat4x4(&proj, XMMatrixPerspectiveFovLH(FOV, aspectRatio, nearZ, farZ));
+	BoundingFrustum::CreateFromMatrix(frustum, XMLoadFloat4x4(&proj));
+	
+	frustum.Transform(frustum, GetViewProjectionMatrix());
 }
 
 void Camera::Update(float dt)
 {
+	frustum.Transform(frustum, GetViewProjectionMatrix());
 	if (GetAsyncKeyState(VK_SHIFT))dt *= 10;
 	if (GetAsyncKeyState('W'))
 	{
@@ -62,7 +67,6 @@ void Camera::Update(float dt)
 	{
 		Fly(-dt);
 	}
-
 }
 
 void Camera::OnMouseDown(WPARAM btnState, WORD x, WORD y)

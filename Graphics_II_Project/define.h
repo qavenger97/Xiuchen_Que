@@ -1,6 +1,7 @@
 #pragma once
 #include <d3d11.h>
 #include <DirectXMath.h>
+#include <DirectXCollision.h>
 using namespace DirectX;
 
 #ifndef SAFE_RELEASE

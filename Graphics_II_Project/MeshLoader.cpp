@@ -10,7 +10,7 @@ MeshLoader::~MeshLoader()
 {
 }
 
-void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex>& verts, std::vector<UINT>& indices)
+void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex>& verts, std::vector<UINT>& indices, BoundingBox* boundingBox)
 {
 	std::ifstream fin(filePath);
 	if (!fin)return;
@@ -231,4 +231,16 @@ void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex>& 
 		}
 	}
 
+	if (boundingBox)
+	{
+		XMVECTOR vmin = XMVectorSet(0, 0, 0, 0);
+		XMVECTOR vmax = XMVectorSet(0, 0, 0, 0);
+		for (size_t i = 0; i < v_pos.size(); i++)
+		{
+			vmin = XMVectorMin(vmin, XMLoadFloat3(&v_pos[i]));
+			vmax = XMVectorMin(vmax, XMLoadFloat3(&v_pos[i]));
+		}
+		XMStoreFloat3(&(boundingBox->Center), 0.5f*(vmin + vmax));
+		XMStoreFloat3(&(boundingBox->Extents), 0.5f*(vmax - vmin));
+	}
 }

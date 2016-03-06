@@ -336,12 +336,12 @@ class Mesh
 	ID3D11VertexShader* vs = 0;
 	ID3D11PixelShader* ps = 0;
 	XMFLOAT4X4 transform[100];
+	BoundingBox bounds[100];
 	UINT numIndex;
 	UINT numInstance;
 public:
 	Mesh()
 	{
-		
 		numInstance = 100;
 	}
 	void Create(ID3D11Device* gfx, const wchar_t* filePath)
@@ -359,7 +359,16 @@ public:
 
 		std::vector<Vertex> v;
 		std::vector<UINT> index;
-		MeshLoader::LoadOBJFromFile(filePath, v, index);
+		BoundingBox bound;
+		MeshLoader::LoadOBJFromFile(filePath, v, index, &bound);
+		XMVECTOR c = XMLoadFloat3(&bound.Center);
+		XMVECTOR e = XMLoadFloat3(&bound.Extents);
+		for (UINT i = 0; i < numInstance; i++)
+		{
+			XMStoreFloat3(&bounds[i].Center, c + XMLoadFloat4x4(&transform[i]).r[3]);
+			XMStoreFloat3(&bounds[i].Extents, e);
+		}
+
 		numIndex = (UINT)index.size();
 
 		D3D11_BUFFER_DESC bd = {};
@@ -430,14 +439,25 @@ public:
 		gfx->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
 		memcpy(mr.pData, &cb, sizeof(cb));
 		gfx->Unmap(pConstantBuffer, 0);
-		
-		gfx->Map(pInstanceBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
-		memcpy(mr.pData, transform, sizeof(transform));
+
+		D3D11_MAPPED_SUBRESOURCE tr = {};
+		gfx->Map(pInstanceBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &tr);
+		//memcpy(mr.pData, transform, sizeof(transform));
+		XMFLOAT4X4* data = reinterpret_cast<XMFLOAT4X4*>(tr.pData);
+		UINT numVisInstance = 0;
+		for (UINT i = 0; i < numInstance; i++)
+		{
+			if (camera.GetViewFrustum()->Intersects(bounds[i]))
+			{
+				data[numVisInstance++] = transform[i];
+			}
+		}
+
 		gfx->Unmap(pInstanceBuffer, 0);
 
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 		gfx->VSSetConstantBuffers(1, 1, &pInstanceBuffer);
-		gfx->DrawIndexedInstanced(numIndex, numInstance, 0, 0, 0);
+		gfx->DrawIndexedInstanced(numIndex, numVisInstance, 0, 0, 0);
 		//gfx->DrawIndexed(numIndex, 0, 0);
 	}
 };

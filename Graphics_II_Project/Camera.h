@@ -9,6 +9,7 @@ private:
 	WORD mouseX;
 	WORD mouseY;
 	Skybox* skybox = nullptr;
+	BoundingFrustum frustum;
 private:
 	void Forward(float speed);
 	void Strafe(float speed);
@@ -30,6 +31,7 @@ public:
 	XMMATRIX GetViewMatrix()const;
 	XMMATRIX GetViewProjectionMatrix()const;
 	XMMATRIX GetViewMatrixInverse()const;
+	inline BoundingFrustum* GetViewFrustum() { return &frustum; }
 public:
 };
 
