@@ -31,7 +31,7 @@ cbuffer WVP : register( b0 )
 
 cbuffer InstanceData : register(b1)
 {
-	float4x4 world[20];
+	float4x4 world[100];
 }
 
 OUTPUT main( INPUT input, uint id : SV_InstanceID )
@@ -47,8 +47,8 @@ OUTPUT main( INPUT input, uint id : SV_InstanceID )
 	output.normal = normalize(mul(input.normal, world3x3));
 
 	output.tengent = normalize(mul(input.tengent, world3x3));
-	output.binormal = cross(output.tengent, output.normal);
+	output.binormal = cross(output.normal, output.tengent);
 
-	output.toEye = normalize(view[3].xyz - output.posWorld);
+	output.toEye = (view[3].xyz - output.posWorld);
 	return output;
 }

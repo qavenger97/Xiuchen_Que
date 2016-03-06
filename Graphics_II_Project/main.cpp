@@ -335,20 +335,28 @@ class Mesh
 	ID3D11InputLayout* pLayout = 0;
 	ID3D11VertexShader* vs = 0;
 	ID3D11PixelShader* ps = 0;
-	XMFLOAT4X4 transform[20];
+	XMFLOAT4X4 transform[100];
 	UINT numIndex;
+	UINT numInstance;
 public:
 	Mesh()
 	{
-		for (int i = 0; i < 20; i++)
-		{
-			XMStoreFloat4x4(&transform[i], XMMatrixIdentity());
-			XMStoreFloat4x4(&transform[i], XMMatrixScaling(0.5f, 0.5f, 0.5f));
-			transform[i].m[3][0] = i*10.0f;
-		}
+		
+		numInstance = 100;
 	}
 	void Create(ID3D11Device* gfx, const wchar_t* filePath)
-	{
+	{for(UINT y = 0; y < 10; y++)
+		{
+			for (UINT x = 0; x < 10; x++)
+			{
+				UINT i = y * 10 + x;
+				XMStoreFloat4x4(&transform[i], XMMatrixIdentity());
+				XMStoreFloat4x4(&transform[i], XMMatrixScaling(0.5f, 0.5f, 0.5f));
+				transform[i].m[3][0] = x * 10.0f - 50;
+				transform[i].m[3][2] = y * 10.0f - 50;
+			}
+		}
+
 		std::vector<Vertex> v;
 		std::vector<UINT> index;
 		MeshLoader::LoadOBJFromFile(filePath, v, index);
@@ -372,7 +380,7 @@ public:
 		bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		gfx->CreateBuffer(&bd, 0, &pConstantBuffer);
 
-		bd.ByteWidth = sizeof(InstanceData) * 20;
+		bd.ByteWidth = sizeof(InstanceData) * numInstance;
 		gfx->CreateBuffer(&bd, 0, &pInstanceBuffer);
 
 		gfx->CreateVertexShader(Trivial_VS, ARRAYSIZE(Trivial_VS), 0, &vs);
@@ -422,20 +430,14 @@ public:
 		gfx->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
 		memcpy(mr.pData, &cb, sizeof(cb));
 		gfx->Unmap(pConstantBuffer, 0);
-
-		InstanceData id[20];
-		for (int i = 0; i < 20; i++)
-		{
-			id[i].world = transform[i];
-		}
 		
 		gfx->Map(pInstanceBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
-		memcpy(mr.pData, id, sizeof(id));
+		memcpy(mr.pData, transform, sizeof(transform));
 		gfx->Unmap(pInstanceBuffer, 0);
 
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 		gfx->VSSetConstantBuffers(1, 1, &pInstanceBuffer);
-		gfx->DrawIndexedInstanced(numIndex, 20, 0, 0, 0);
+		gfx->DrawIndexedInstanced(numIndex, numInstance, 0, 0, 0);
 		//gfx->DrawIndexed(numIndex, 0, 0);
 	}
 };
@@ -698,16 +700,16 @@ void DEMO_APP::InitResources()
 
 	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
 	lights.light[0].dir = XMFLOAT4(0, -1, 0, 0);
-	lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 1);
+	lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 0.5f);
 	lights.light[0].att = XMFLOAT4(0, 0, 0, 0);
 
 	lights.light[1].pos = XMFLOAT4(0, 0.1f, 0, 1);
-	lights.light[1].color = XMFLOAT4(0.2f, 0.5f, 0.6f, 1);
+	lights.light[1].color = XMFLOAT4(0.2f, 0.5f, 0.6f, 0);
 	lights.light[1].dir = XMFLOAT4(0, 0, 0, 0);
-	lights.light[1].att = XMFLOAT4(0, 0, 3, 1);
+	lights.light[1].att = XMFLOAT4(0, 0, 10, 1);
 
 	lights.light[2].pos = XMFLOAT4(0, 0, 0, 2);
-	lights.light[2].color = XMFLOAT4(1, 1, 1, 1);
+	lights.light[2].color = XMFLOAT4(1, 1, 1, 0);
 	lights.light[2].att = XMFLOAT4(0.99f, 0.92f, 20, 2);
 }
 bool DEMO_APP::Run()

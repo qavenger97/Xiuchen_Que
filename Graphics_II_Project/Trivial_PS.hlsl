@@ -33,7 +33,7 @@ struct INPUT
 void ComputeSpecular(float4 lightColor, float3 surfacePos, float3 toEye, float3 surfaceNormal, float3 lightDir, float specularPower, out float4 specular)
 {
 	specular = float4(0, 0, 0, 0);
-	float3 halfv = normalize(lightDir + toEye);
+	float3 halfv = normalize(lightDir + normalize(toEye));
 	float intensity = pow(saturate(dot(surfaceNormal, halfv)), specularPower);
 	specular = float4(lightColor.xyz, 0) * intensity * lightColor.w;
 }
@@ -45,7 +45,7 @@ void ComputeDirectionalLight(Light light, float3 surfacePos, float3 toEye, float
 	specular = float4(0, 0, 0, 0);
 	float3 dir = -light.dir.xyz;
 	diffuse = saturate(dot(dir, surfaceNormal))*light.color.w * float4(light.color.xyz,0);
-	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 128, specular);
+	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 10, specular);
 }
 
 void ComputePointLight(Light light, float3 surfacePos, float3 toEye, float3 surfaceNormal, out float4 diffuse, out float4 specular)
@@ -59,7 +59,7 @@ void ComputePointLight(Light light, float3 surfacePos, float3 toEye, float3 surf
 	float surfaceRatio = max(0,dot(dir, surfaceNormal));
 	float att = 1 - clamp(len / light.att.z, 0, 1);
 	diffuse = surfaceRatio * light.color.w * att * float4(light.color.xyz, 0);
-	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 128, specular);
+	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 10, specular);
 	specular *= att;
 }
 
@@ -79,7 +79,7 @@ void ComputeSpotLight(Light light, float3 surfacePos, float3 toEye, float3 surfa
 	float spotFactor = (spotRatio > light.att.y) ? 1 : 0;
 	float att = attR * attD;
 	diffuse = spotFactor * LightRatio * float4(light.color.xyz, 0) * att * light.color.w;
-	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 128, specular);
+	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 10, specular);
 	specular *= att;
 }
 
@@ -118,7 +118,7 @@ float4 main( INPUT input ) : SV_TARGET
 	float4 specularLight_p = float4(0, 0, 0, 0);
 	float4 specularLight_s = float4(0, 0, 0, 0);
 
-	surfaceNormal = nrmT.x * -ten  +  nrmT.y * bin + nrmT.z * surfaceNormal;
+	surfaceNormal = nrmT.x * ten + nrmT.y * bin + nrmT.z * surfaceNormal;
 
 	float4 texColor = tex.Sample(filter, input.uv.xy);
 	float4 ambientLight = float4((0.1f * texColor).rgb,0);
