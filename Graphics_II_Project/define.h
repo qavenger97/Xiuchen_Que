@@ -10,18 +10,22 @@ using namespace DirectX;
 
 struct ConstantPerObject
 {
-	XMFLOAT4X4 worldMatrix;
-	XMFLOAT4X4 world;
+	XMFLOAT4X4 viewInverse;
 	XMFLOAT4X4 projectionMatrix;
 	XMFLOAT4X4 view;
 };
 
-struct Vertex_m
+struct Vertex
 {
 	XMFLOAT3 pos;
 	XMFLOAT3 normal;
 	XMFLOAT3 uv0;
 	XMFLOAT3 tengent;
+};
+
+struct InstanceData
+{
+	XMFLOAT4X4 world;
 };
 
 struct DirectionalLight

@@ -10,7 +10,7 @@ MeshLoader::~MeshLoader()
 {
 }
 
-void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex_m>& verts, std::vector<UINT>& indices)
+void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex>& verts, std::vector<UINT>& indices)
 {
 	std::ifstream fin(filePath);
 	if (!fin)return;
@@ -144,7 +144,7 @@ void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex_m>
 		check = buffer;
 	}
 
-	Vertex_m v;
+	Vertex v;
 	UINT index = 0;
 
 

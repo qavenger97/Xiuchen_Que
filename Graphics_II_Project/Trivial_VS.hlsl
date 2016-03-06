@@ -8,6 +8,8 @@ struct INPUT
 	float3 tengent	:		TEXCOORD2;
 };
 
+
+
 struct OUTPUT
 {
 	float4 pos					: SV_POSITION;
@@ -22,20 +24,25 @@ struct OUTPUT
 // TODO: PART 3 STEP 2a
 cbuffer WVP : register( b0 )
 {
-	float4x4 worldView;
-	float4x4 world;
+	float4x4 viewInverse;
 	float4x4 proj;
 	float4x4 view;
 };
 
-OUTPUT main( INPUT input )
+cbuffer InstanceData : register(b1)
+{
+	float4x4 world[20];
+}
+
+OUTPUT main( INPUT input, uint id : SV_InstanceID )
 {
 	OUTPUT output;
 	float4 coord = float4(input.pos, 1);
-	float4 wv = mul(coord, worldView);
+	float4 wv = mul(coord, world[id]);
+	wv = mul(wv, viewInverse);
 	output.pos = mul(wv,proj);
-	float3x3 world3x3 = (float3x3)world;
-	output.posWorld = mul(coord, world).xyz;
+	float3x3 world3x3 = (float3x3)world[id];
+	output.posWorld = mul(coord, world[id]).xyz;
 	output.uv = input.uvw;
 	output.normal = normalize(mul(input.normal, world3x3));
 

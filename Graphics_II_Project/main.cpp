@@ -44,7 +44,7 @@ public:
 	ObjectBase(){}
 	ObjectBase(int numVerts) :numVerts(numVerts)
 	{
-		v = new Vertex_m[numVerts];
+		v = new Vertex[numVerts];
 		XMMATRIX I = XMMatrixIdentity();
 		XMStoreFloat4x4(&transform, I);
 	}
@@ -55,7 +55,7 @@ public:
 		ZeroMemory(&bd, sizeof(bd));
 		bd.Usage = D3D11_USAGE_IMMUTABLE;
 
-		bd.ByteWidth = sizeof(Vertex_m)*numVerts;
+		bd.ByteWidth = sizeof(Vertex)*numVerts;
 		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		bd.CPUAccessFlags = 0;
 		D3D11_SUBRESOURCE_DATA sd;
@@ -81,7 +81,7 @@ public:
 
 	void Draw(ID3D11DeviceContext* gfx)
 	{
-		UINT stride = sizeof Vertex_m;
+		UINT stride = sizeof Vertex;
 		UINT offset = 0;
 
 		gfx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -101,7 +101,7 @@ public:
 public:
 	XMFLOAT4X4 transform;
 protected:
-	Vertex_m* v = 0;
+	Vertex* v = 0;
 	UINT* indices = 0;
 	ID3D11Buffer* pVertexBuffer = 0;
 	ID3D11Buffer* pIndexBuffer= 0;
@@ -330,28 +330,33 @@ class Mesh
 {
 	ID3D11Buffer* pVertexBuffer = 0;
 	ID3D11Buffer* pIndexBuffer = 0;
+	ID3D11Buffer* pInstanceBuffer = 0;
 	ID3D11Buffer* pConstantBuffer = 0;
 	ID3D11InputLayout* pLayout = 0;
 	ID3D11VertexShader* vs = 0;
 	ID3D11PixelShader* ps = 0;
-	XMFLOAT4X4 transform;
+	XMFLOAT4X4 transform[20];
 	UINT numIndex;
 public:
 	Mesh()
 	{
-		XMStoreFloat4x4(&transform, XMMatrixIdentity());
-		XMStoreFloat4x4(&transform, XMMatrixScaling(0.5f, 0.5f, 0.5f));
+		for (int i = 0; i < 20; i++)
+		{
+			XMStoreFloat4x4(&transform[i], XMMatrixIdentity());
+			XMStoreFloat4x4(&transform[i], XMMatrixScaling(0.5f, 0.5f, 0.5f));
+			transform[i].m[3][0] = i*10.0f;
+		}
 	}
 	void Create(ID3D11Device* gfx, const wchar_t* filePath)
 	{
-		std::vector<Vertex_m> v;
+		std::vector<Vertex> v;
 		std::vector<UINT> index;
 		MeshLoader::LoadOBJFromFile(filePath, v, index);
 		numIndex = (UINT)index.size();
 
 		D3D11_BUFFER_DESC bd = {};
 		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		bd.ByteWidth = sizeof(Vertex_m) * (UINT)v.size();
+		bd.ByteWidth = sizeof(Vertex) * (UINT)v.size();
 		bd.Usage = D3D11_USAGE_IMMUTABLE;
 		D3D11_SUBRESOURCE_DATA sd = {};
 		sd.pSysMem = v.data();
@@ -366,6 +371,9 @@ public:
 		bd.Usage = D3D11_USAGE_DYNAMIC;
 		bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		gfx->CreateBuffer(&bd, 0, &pConstantBuffer);
+
+		bd.ByteWidth = sizeof(InstanceData) * 20;
+		gfx->CreateBuffer(&bd, 0, &pInstanceBuffer);
 
 		gfx->CreateVertexShader(Trivial_VS, ARRAYSIZE(Trivial_VS), 0, &vs);
 		gfx->CreatePixelShader(Trivial_PS, ARRAYSIZE(Trivial_PS), 0, &ps);
@@ -382,19 +390,21 @@ public:
 	}
 	~Mesh()
 	{
-		if (ps)ps->Release();
-		if (vs)vs->Release();
-		if (pLayout)pLayout->Release();
-		if (pConstantBuffer)pConstantBuffer->Release();
-		if (pVertexBuffer)pVertexBuffer->Release();
-		if (pIndexBuffer)pIndexBuffer->Release();
+		SAFE_RELEASE(ps);
+		SAFE_RELEASE(vs);
+		SAFE_RELEASE(pLayout);
+		SAFE_RELEASE(pInstanceBuffer);
+		SAFE_RELEASE(pConstantBuffer);
+		SAFE_RELEASE(pVertexBuffer);
+		SAFE_RELEASE(pIndexBuffer);
 	}
 	void Draw(ID3D11DeviceContext* gfx)
 	{
-		UINT stride = sizeof Vertex_m;
+		UINT stride = sizeof Vertex;
 		UINT offset = 0;
 
 		gfx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//ID3D11Buffer* buffer[] = pVertexBuffer, 
 		gfx->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
 		gfx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 		gfx->VSSetShader(vs, 0, 0);
@@ -403,8 +413,9 @@ public:
 
 		D3D11_MAPPED_SUBRESOURCE mr = {};
 		ConstantPerObject cb;
-		XMStoreFloat4x4(&cb.worldMatrix,XMLoadFloat4x4(&transform) * camera.GetViewMatrix());
-		cb.world = transform;
+
+
+		XMStoreFloat4x4(&cb.viewInverse, camera.GetViewMatrix());
 		XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
 		XMStoreFloat4x4(&cb.view, camera.GetViewMatrixInverse());
 
@@ -412,8 +423,20 @@ public:
 		memcpy(mr.pData, &cb, sizeof(cb));
 		gfx->Unmap(pConstantBuffer, 0);
 
+		InstanceData id[20];
+		for (int i = 0; i < 20; i++)
+		{
+			id[i].world = transform[i];
+		}
+		
+		gfx->Map(pInstanceBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mr);
+		memcpy(mr.pData, id, sizeof(id));
+		gfx->Unmap(pInstanceBuffer, 0);
+
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
-		gfx->DrawIndexed(numIndex, 0, 0);
+		gfx->VSSetConstantBuffers(1, 1, &pInstanceBuffer);
+		gfx->DrawIndexedInstanced(numIndex, 20, 0, 0, 0);
+		//gfx->DrawIndexed(numIndex, 0, 0);
 	}
 };
 
@@ -669,7 +692,7 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	teapot.Create(pDevice, L"Plane.obj");
+	teapot.Create(pDevice, L"chest.obj");
 	
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 
@@ -708,7 +731,7 @@ bool DEMO_APP::Run()
 		camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 	}
 
-	XMStoreFloat4x4(&cb.worldMatrix, camera.GetPos() * camera.GetViewProjectionMatrix());
+	XMStoreFloat4x4(&cb.viewInverse, camera.GetPos() * camera.GetViewProjectionMatrix());
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 	memcpy(ms.pData, &cb, sizeof(cb));
 	pDeviceContext->Unmap(pConstantBuffer, 0);
@@ -727,8 +750,7 @@ bool DEMO_APP::Run()
 	angle += 0.0001f;
 	if (angle >= XM_2PI)angle = 0;
 	XMMATRIX t = XMMatrixRotationY(angle) * XMLoadFloat4x4(&star.transform);
-	XMStoreFloat4x4(&cb.world, t);
-	XMStoreFloat4x4(&cb.worldMatrix, t * camera.GetViewMatrix());
+	XMStoreFloat4x4(&cb.viewInverse, t * camera.GetViewMatrix());
 	XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 	memcpy(ms.pData, &cb, sizeof(cb));
