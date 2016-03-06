@@ -11,10 +11,20 @@ struct Light
 	float4 att; // x = inner, y = outer, z = range, w = type: 0 == Directional Light, 1 = PointLight, 2 = SpotLight;
 };
 
+struct Material
+{
+	float3 ambientColor;
+	float	 specularPower;
+	float3 diffuseColor;
+	float	 fresnelPower;
+	float3 specularColor;
+	float	 fresnelIntensity;
+};
+
 cbuffer Light : register(b0)
 {
-	
 	Light lights[3];
+	Material material;
 }
 
 struct INPUT
@@ -30,12 +40,12 @@ struct INPUT
 
 
 
-void ComputeSpecular(float4 lightColor, float3 surfacePos, float3 toEye, float3 surfaceNormal, float3 lightDir, float specularPower, out float4 specular)
+void ComputeSpecular(float4 lightColor, float3 surfacePos, float3 toEye, float3 surfaceNormal, float3 lightDir , out float4 specular)
 {
 	specular = float4(0, 0, 0, 0);
-	float3 halfv = normalize(lightDir + normalize(toEye));
-	float intensity = pow(saturate(dot(surfaceNormal, halfv)), specularPower);
-	specular = float4(lightColor.xyz, 0) * intensity * lightColor.w;
+	float3 halfv = normalize(lightDir + toEye);
+	float intensity = pow(saturate(dot(surfaceNormal, halfv)), material.specularPower);
+	specular = float4(material.specularColor, 0) * lightColor * intensity * lightColor.w;
 }
 
 
@@ -45,7 +55,7 @@ void ComputeDirectionalLight(Light light, float3 surfacePos, float3 toEye, float
 	specular = float4(0, 0, 0, 0);
 	float3 dir = -light.dir.xyz;
 	diffuse = saturate(dot(dir, surfaceNormal))*light.color.w * float4(light.color.xyz,0);
-	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 10, specular);
+	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, specular);
 }
 
 void ComputePointLight(Light light, float3 surfacePos, float3 toEye, float3 surfaceNormal, out float4 diffuse, out float4 specular)
@@ -59,7 +69,7 @@ void ComputePointLight(Light light, float3 surfacePos, float3 toEye, float3 surf
 	float surfaceRatio = max(0,dot(dir, surfaceNormal));
 	float att = 1 - clamp(len / light.att.z, 0, 1);
 	diffuse = surfaceRatio * light.color.w * att * float4(light.color.xyz, 0);
-	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 10, specular);
+	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir,  specular);
 	specular *= att;
 }
 
@@ -79,7 +89,7 @@ void ComputeSpotLight(Light light, float3 surfacePos, float3 toEye, float3 surfa
 	float spotFactor = (spotRatio > light.att.y) ? 1 : 0;
 	float att = attR * attD;
 	diffuse = spotFactor * LightRatio * float4(light.color.xyz, 0) * att * light.color.w;
-	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, 10, specular);
+	ComputeSpecular(light.color, surfacePos, toEye, surfaceNormal, dir, specular);
 	specular *= att;
 }
 
@@ -109,37 +119,37 @@ float4 main( INPUT input ) : SV_TARGET
 	float4 specT = spec.Sample(filter, input.uv.xy);
 	nrmT = normalize((nrmT * 2 - 1.0f));
 
-	float3 surfaceNormal = normalize(input.normal);
+	float3 nrn = normalize(input.normal);
 	float3 ten = normalize(input.tengent);
 	float3 bin = normalize(input.binormal);
 
-	//specluar
 	float4 specularLight_d = float4(0, 0, 0, 0);
 	float4 specularLight_p = float4(0, 0, 0, 0);
 	float4 specularLight_s = float4(0, 0, 0, 0);
 
-	surfaceNormal = nrmT.x * ten + nrmT.y * bin + nrmT.z * surfaceNormal;
+	//float3 surfaceNormal = nrmT.x * ten + nrmT.y * bin + nrmT.z * nrn;
+	
+
+	float3x3 TBN = float3x3(ten, bin, nrn);
+
+	float3 surfaceNormal = (mul(nrmT, TBN));
 
 	float4 texColor = tex.Sample(filter, input.uv.xy);
-	float4 ambientLight = float4((0.1f * texColor).rgb,0);
-	
-	//DirectionLight diffuse
+	float4 ambientLight = float4((material.ambientColor * texColor.xyz).rgb,0);
+	float3 toEye = normalize(input.toEye);
 	float4 diffuseLight_d;
-	ComputeLight(lights[0], input.posWorld, input.toEye, surfaceNormal, diffuseLight_d, specularLight_d);
-	//ComputeDirectionalLight(sun, nrm, diffuseLight_d);
-	//PointLight diffuse
+	ComputeLight(lights[0], input.posWorld, toEye, surfaceNormal, diffuseLight_d, specularLight_d);
 	float4 diffuseLight_p;
-	ComputeLight(lights[1], input.posWorld, input.toEye, surfaceNormal, diffuseLight_p, specularLight_p);
-	//ComputePointLight(pointLight, input.posWorld, nrm, diffuseLight_p);
-	//SpotLight diffuse
-	float4 diffuseLight_s;
-	ComputeLight(lights[2], input.posWorld, input.toEye, surfaceNormal, diffuseLight_s, specularLight_s);
-	//ComputeSpotLight(spotLight, input.posWorld, nrm, diffuseLight_s);
+	ComputeLight(lights[1], input.posWorld, toEye, surfaceNormal, diffuseLight_p, specularLight_p);
 
-	float4 diffuseLight = diffuseLight_d + diffuseLight_p + diffuseLight_s;
-	//float4 specularLight = (diffuseLight_s)*specT.x;
+	float4 diffuseLight_s;
+	ComputeLight(lights[2], input.posWorld, toEye, surfaceNormal, diffuseLight_s, specularLight_s);
+
+	float4 diffuseLight = (diffuseLight_d + diffuseLight_p + diffuseLight_s) * float4(material.diffuseColor,0);
+
 	float4 specularLight = (specularLight_d + specularLight_p + specularLight_s)*specT.x;
-	//return texColor; 
-	//return ambientLight + float4((texColor * diffuseLight).rgb, texColor.a) ;
-	return ambientLight + float4( (texColor * diffuseLight).rgb,texColor.a) + specularLight;
+
+	float f = pow((1 - saturate(dot(toEye, surfaceNormal))), material.fresnelPower) * material.fresnelIntensity;
+	float4 fresnel = float4(f, f, f, 0);
+	return ambientLight + float4(((texColor * diffuseLight) + specularLight).rgb, texColor.a) + fresnel;
 }

@@ -2,12 +2,12 @@
 #include <d3d11.h>
 #include <DirectXMath.h>
 #include <DirectXCollision.h>
+#include "Material.h"
 using namespace DirectX;
 
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(x) if(x){x->Release(); x = nullptr;}
 #endif // !SAFE_RELEASE(X) 
-
 
 struct ConstantPerObject
 {
@@ -29,34 +29,6 @@ struct InstanceData
 	XMFLOAT4X4 world;
 };
 
-struct DirectionalLight
-{
-	XMFLOAT3 dir;
-	FLOAT intensity;
-	XMFLOAT4 color;
-};
-
-struct PointLight
-{
-	XMFLOAT3 pos;
-	FLOAT att;
-	XMFLOAT4 color;
-	FLOAT intensity;
-	FLOAT pad[3];
-};
-
-struct SpotLight
-{
-	XMFLOAT4 color;
-	XMFLOAT3 pos;
-	FLOAT range;
-	XMFLOAT3 dir;
-	FLOAT innerAtt;
-	FLOAT outerAtt;
-	FLOAT intensity;
-	XMFLOAT2 pad;
-};
-
 struct Light
 {
 	XMFLOAT4 pos; // w = index;
@@ -65,9 +37,20 @@ struct Light
 	XMFLOAT4 att; // x = inner, y = outer, z = range, w = type: 0 == Directional Light, 1 = PointLight, 2 = SpotLight;
 };
 
+struct Material
+{
+	XMFLOAT3 ambientColor;
+	FLOAT	 specularPower;
+	XMFLOAT3 diffuseColor;
+	FLOAT	 fresnelPower;
+	XMFLOAT3 specularColor;
+	FLOAT	 fresnelIntensity;
+};
+
 struct LightBuffer
 {
 	Light light[3];
+	Material material;
 };
 
 static float DegreeToRadian(float degree)

@@ -27,6 +27,7 @@ using namespace std;
 #include "Camera.h"
 #include "SamplerStates.h"
 #include "MeshLoader.h"
+#include "Material.h"
 #define BACKBUFFER_WIDTH	500
 #define BACKBUFFER_HEIGHT	500
 #define NUM_VERT 16
@@ -720,17 +721,26 @@ void DEMO_APP::InitResources()
 
 	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
 	lights.light[0].dir = XMFLOAT4(0, -1, 0, 0);
+	//lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 0);
 	lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 0.5f);
 	lights.light[0].att = XMFLOAT4(0, 0, 0, 0);
 
 	lights.light[1].pos = XMFLOAT4(0, 0.1f, 0, 1);
-	lights.light[1].color = XMFLOAT4(0.2f, 0.5f, 0.6f, 0);
+	//lights.light[1].color = XMFLOAT4(0.2f, 0.5f, 0.6f, 0);
+	lights.light[1].color = XMFLOAT4(0.2f, 0.5f, 0.6f, 0.7f);
 	lights.light[1].dir = XMFLOAT4(0, 0, 0, 0);
 	lights.light[1].att = XMFLOAT4(0, 0, 10, 1);
 
 	lights.light[2].pos = XMFLOAT4(0, 0, 0, 2);
-	lights.light[2].color = XMFLOAT4(1, 1, 1, 0);
+	//lights.light[2].color = XMFLOAT4(1, 1, 1, 0);
+	lights.light[2].color = XMFLOAT4(1, 1, 1, 1);
 	lights.light[2].att = XMFLOAT4(0.99f, 0.92f, 20, 2);
+	lights.material.fresnelIntensity = 0.4f;
+	lights.material.fresnelPower = 20;
+	lights.material.specularPower = 20;
+	lights.material.ambientColor = XMFLOAT3(0.14f, 0.13f, 0.13f);
+	lights.material.diffuseColor = XMFLOAT3(1, 1, 1);
+	lights.material.specularColor = XMFLOAT3(0.7f, 0.68f, 0.0f);
 }
 bool DEMO_APP::Run()
 {
@@ -811,15 +821,21 @@ bool DEMO_APP::Run()
 
 	if (GetAsyncKeyState(VK_LEFT))
 	{	
-		XMVECTOR d = XMVectorSet(0,0,0,0);
-		XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
-		d.m128_f32[0] = -(float)timer.Delta()*10;
-		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
-		d.m128_f32[1] = 0;
-		d.m128_f32[2] = 0;
-		XMStoreFloat4(&lights.light[1].pos, d + pos);
-		lights.light[1].pos.w = 1;
-	
+		if (GetAsyncKeyState(VK_SHIFT))
+		{
+			lights.material.fresnelPower -= (float)timer.Delta();
+		}
+		else
+		{
+			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+			XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
+			d.m128_f32[0] = -(float)timer.Delta() * 10;
+			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+			d.m128_f32[1] = 0;
+			d.m128_f32[2] = 0;
+			XMStoreFloat4(&lights.light[1].pos, d + pos);
+			lights.light[1].pos.w = 1;
+		}
 	}
 
 	if (GetAsyncKeyState('F') & 0x01)
@@ -829,21 +845,29 @@ bool DEMO_APP::Run()
 
 	if (GetAsyncKeyState(VK_RIGHT))
 	{
-		XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-		XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
-		d.m128_f32[0] = (float)timer.Delta() * 10;
-		d = XMVector4Transform(d, camera.GetViewMatrixInverse());
-		d.m128_f32[1] = 0;
-		d.m128_f32[2] = 0;
-		XMStoreFloat4(&lights.light[1].pos, d + pos);
-		lights.light[1].pos.w = 1;
+
+		if (GetAsyncKeyState(VK_SHIFT))
+		{
+			lights.material.fresnelPower += (float)timer.Delta();
+		}
+		else
+		{
+			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+			XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
+			d.m128_f32[0] = (float)timer.Delta() * 10;
+			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+			d.m128_f32[1] = 0;
+			d.m128_f32[2] = 0;
+			XMStoreFloat4(&lights.light[1].pos, d + pos);
+			lights.light[1].pos.w = 1;
+		}
 	}
 
 	if (GetAsyncKeyState(VK_UP))
 	{
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.light[1].pos.y += (float)timer.Delta()*10;
+			lights.material.fresnelIntensity += (float)timer.Delta();
 		}
 		else
 		{
@@ -855,7 +879,7 @@ bool DEMO_APP::Run()
 	{
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.light[1].pos.y -= (float)timer.Delta() * 10;
+			lights.material.fresnelIntensity -= (float)timer.Delta();
 		}
 		else
 		{

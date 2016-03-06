@@ -34,7 +34,6 @@ void Camera::SetProjection(float FOV, float width, float height, float nearZ, fl
 
 void Camera::Update(float dt)
 {
-	frustum.Transform(frustum, GetViewProjectionMatrix());
 	if (GetAsyncKeyState(VK_SHIFT))dt *= 10;
 	if (GetAsyncKeyState('W'))
 	{
@@ -67,6 +66,8 @@ void Camera::Update(float dt)
 	{
 		Fly(-dt);
 	}
+	frustum.Transform(frustum, GetViewProjectionMatrix());
+	XMStoreFloat4(&frustum.Orientation, XMVector4Normalize(XMLoadFloat4(&frustum.Orientation)));
 }
 
 void Camera::OnMouseDown(WPARAM btnState, WORD x, WORD y)
