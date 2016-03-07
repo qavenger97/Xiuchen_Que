@@ -131,7 +131,7 @@ void Skybox::Draw(ID3D11DeviceContext * gfx)
 	gfx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 	gfx->VSSetShader(pVS, 0, 0);
 	gfx->PSSetShader(pPS, 0, 0);
-	gfx->PSSetShaderResources(0, 1, &pSRV);
+	gfx->PSSetShaderResources(3, 1, &pSRV);
 	gfx->DrawIndexed(numIndices, 0, 0);
 	gfx->OMSetDepthStencilState(nullptr, 0);
 }

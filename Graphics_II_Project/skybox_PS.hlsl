@@ -1,4 +1,4 @@
-TextureCube tex : register(t0);
+TextureCube tex : register(t3);
 SamplerState filter : register(s0);
 
 struct INPUT

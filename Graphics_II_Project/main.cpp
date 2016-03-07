@@ -741,6 +741,7 @@ void DEMO_APP::InitResources()
 	lights.material.ambientColor = XMFLOAT3(0.14f, 0.13f, 0.13f);
 	lights.material.diffuseColor = XMFLOAT3(1, 1, 1);
 	lights.material.specularColor = XMFLOAT3(0.7f, 0.68f, 0.0f);
+	lights.material.heightOffset = 0.01f;
 }
 bool DEMO_APP::Run()
 {
@@ -823,7 +824,7 @@ bool DEMO_APP::Run()
 	{	
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.material.fresnelPower -= (float)timer.Delta();
+			lights.material.heightOffset -= 0.0001f;
 		}
 		else
 		{
@@ -848,7 +849,7 @@ bool DEMO_APP::Run()
 
 		if (GetAsyncKeyState(VK_SHIFT))
 		{
-			lights.material.fresnelPower += (float)timer.Delta();
+			lights.material.heightOffset += 0.0001f;
 		}
 		else
 		{

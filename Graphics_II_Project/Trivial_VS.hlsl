@@ -19,6 +19,7 @@ struct OUTPUT
 	float3 posWorld				: TEXCOORD2;
 	float3 tengent				: TEXCOORD3;
 	float3 binormal				: TEXCOORD4;
+	float3 eyeTengent			: TEXCOORD5;
 };
 
 // TODO: PART 3 STEP 2a
@@ -44,11 +45,20 @@ OUTPUT main( INPUT input, uint id : SV_InstanceID )
 	float3x3 world3x3 = (float3x3)world[id];
 	output.posWorld = mul(coord, world[id]).xyz;
 	output.uv = input.uvw;
-	output.normal = normalize(mul(input.normal, world3x3));
 
-	output.tengent = normalize(mul(input.tengent, world3x3));
-	output.binormal = cross(output.normal, output.tengent);
+	float3 normal = normalize(input.normal);
+	float3 tengent = normalize(input.tengent);
 
+	output.normal = (mul(normal, world3x3));
+	output.tengent = (mul(tengent, world3x3));
+
+	output.binormal = (cross(output.normal, output.tengent));
 	output.toEye = (view[3].xyz - output.posWorld);
+
+	float3 biTengent = (cross(normal, tengent));
+	float3x3 toTengent = float3x3(tengent, biTengent, normal);
+
+	output.eyeTengent = (mul(output.toEye, toTengent));
+
 	return output;
 }

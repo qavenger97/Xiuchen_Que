@@ -45,6 +45,8 @@ struct Material
 	FLOAT	 fresnelPower;
 	XMFLOAT3 specularColor;
 	FLOAT	 fresnelIntensity;
+	FLOAT	 heightOffset;
+	XMFLOAT3 pad;
 };
 
 struct LightBuffer
