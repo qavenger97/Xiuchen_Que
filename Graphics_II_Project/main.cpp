@@ -22,6 +22,9 @@ using namespace std;
 #include "Trivial_PS.csh"
 #include "Grid_VS.csh"
 #include "Grid_PS.csh"
+#include "Debug_VS.csh"
+#include "Debug_PS.csh"
+#include "Debug_GS.csh"
 #include "DDSTextureLoader.h"
 #include "XTime.h"
 #include "Camera.h"
@@ -333,18 +336,31 @@ class Mesh
 	ID3D11Buffer* pIndexBuffer = 0;
 	ID3D11Buffer* pInstanceBuffer = 0;
 	ID3D11Buffer* pConstantBuffer = 0;
+	ID3D11Buffer* pDebugBox = 0;
 	ID3D11InputLayout* pLayout = 0;
 	ID3D11VertexShader* vs = 0;
 	ID3D11PixelShader* ps = 0;
+	ID3D11VertexShader* pDebug_VS = 0;
+	ID3D11PixelShader* pDebug_PS = 0;
+	ID3D11GeometryShader* pDebug_GS = 0;
+	ID3D11InputLayout* pDebugLayout = 0;
 	XMFLOAT4X4 transform[100];
 	BoundingBox bounds[100];
 	UINT numIndex;
 	UINT numInstance;
+	bool debug;
 public:
 	Mesh()
 	{
 		numInstance = 100;
+		debug = false;
 	}
+
+	void ToogleBoundingBox()
+	{
+		debug = !debug;
+	}
+
 	void Create(ID3D11Device* gfx, const wchar_t* filePath)
 	{for(UINT y = 0; y < 10; y++)
 		{
@@ -352,7 +368,7 @@ public:
 			{
 				UINT i = y * 10 + x;
 				XMStoreFloat4x4(&transform[i], XMMatrixIdentity());
-				XMStoreFloat4x4(&transform[i], XMMatrixScaling(0.5f, 0.5f, 0.5f));
+				XMStoreFloat4x4(&transform[i], XMMatrixScaling(0.1f, 0.1f, 0.1f));
 				transform[i].m[3][0] = x * 10.0f - 50;
 				transform[i].m[3][2] = y * 10.0f - 50;
 			}
@@ -363,12 +379,13 @@ public:
 		BoundingBox bound;
 		MeshLoader::LoadOBJFromFile(filePath, v, index, &bound);
 		XMVECTOR c = XMLoadFloat3(&bound.Center);
-		XMVECTOR e = XMLoadFloat3(&bound.Extents);
+		XMVECTOR e = XMLoadFloat3(&bound.Extents) * 0.1f;
 		for (UINT i = 0; i < numInstance; i++)
 		{
 			XMStoreFloat3(&bounds[i].Center, c + XMLoadFloat4x4(&transform[i]).r[3]);
 			XMStoreFloat3(&bounds[i].Extents, e);
 		}
+		
 
 		numIndex = (UINT)index.size();
 
@@ -380,10 +397,15 @@ public:
 		sd.pSysMem = v.data();
 		gfx->CreateBuffer(&bd, &sd, &pVertexBuffer);
 
+		bd.ByteWidth = sizeof(BoundingBox) * numInstance;
+		sd.pSysMem = bounds;
+		gfx->CreateBuffer(&bd, &sd, &pDebugBox);
+
 		bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
 		bd.ByteWidth = sizeof(UINT) * (UINT)index.size();
 		sd.pSysMem = index.data();
 		gfx->CreateBuffer(&bd, &sd, &pIndexBuffer);
+
 		bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 		bd.ByteWidth = sizeof(ConstantPerObject);
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -395,6 +417,11 @@ public:
 
 		gfx->CreateVertexShader(Trivial_VS, ARRAYSIZE(Trivial_VS), 0, &vs);
 		gfx->CreatePixelShader(Trivial_PS, ARRAYSIZE(Trivial_PS), 0, &ps);
+		gfx->CreateVertexShader(Debug_VS, ARRAYSIZE(Debug_VS), 0, &pDebug_VS);
+		gfx->CreatePixelShader(Debug_PS, ARRAYSIZE(Debug_PS), 0, &pDebug_PS);
+		gfx->CreateGeometryShader(Debug_GS, ARRAYSIZE(Debug_GS), 0, &pDebug_GS);
+
+
 		D3D11_RASTERIZER_DESC rasterDesc = {};
 
 		D3D11_INPUT_ELEMENT_DESC layout[] =
@@ -405,12 +432,23 @@ public:
 			"TEXCOORD", 2, DXGI_FORMAT_R32G32B32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT,D3D11_INPUT_PER_VERTEX_DATA,0
 		};
 		gfx->CreateInputLayout(layout, ARRAYSIZE(layout), Trivial_VS, ARRAYSIZE(Trivial_VS), &pLayout);
+		D3D11_INPUT_ELEMENT_DESC debugLayout[] =
+		{
+			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0						   , D3D11_INPUT_PER_VERTEX_DATA,0,
+			"TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0,
+		};
+		gfx->CreateInputLayout(debugLayout, ARRAYSIZE(debugLayout), Debug_VS, ARRAYSIZE(Debug_VS), &pDebugLayout);
 	}
 	~Mesh()
 	{
 		SAFE_RELEASE(ps);
 		SAFE_RELEASE(vs);
 		SAFE_RELEASE(pLayout);
+		SAFE_RELEASE(pDebugBox);
+		SAFE_RELEASE(pDebug_GS);
+		SAFE_RELEASE(pDebug_PS);
+		SAFE_RELEASE(pDebug_VS);
+		SAFE_RELEASE(pDebugLayout);
 		SAFE_RELEASE(pInstanceBuffer);
 		SAFE_RELEASE(pConstantBuffer);
 		SAFE_RELEASE(pVertexBuffer);
@@ -459,7 +497,20 @@ public:
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 		gfx->VSSetConstantBuffers(1, 1, &pInstanceBuffer);
 		gfx->DrawIndexedInstanced(numIndex, numVisInstance, 0, 0, 0);
+
+		if (debug)
+		{
+			gfx->IASetInputLayout(pDebugLayout);
+
+			gfx->VSSetShader(pDebug_VS, 0, 0);
+			gfx->GSSetShader(pDebug_GS, 0, 0);
+			gfx->PSSetShader(pDebug_PS, 0, 0);
+
+			gfx->Draw(numInstance, 0);
+			gfx->GSSetShader(nullptr,0,0);
+		}
 		//gfx->DrawIndexed(numIndex, 0, 0);
+		
 	}
 };
 
@@ -613,7 +664,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	ID3D11Texture2D* depthBuffer = 0;
 	D3D11_TEXTURE2D_DESC td;
 	ZeroMemory(&td, sizeof(td));
-	td.Format = DXGI_FORMAT_D32_FLOAT;
+	td.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	td.Height = BACKBUFFER_HEIGHT;
 	td.Width = BACKBUFFER_WIDTH;
 	td.ArraySize = 1;
@@ -641,8 +692,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC svd;
 	ZeroMemory(&svd, sizeof(svd));
-	svd.Format = DXGI_FORMAT_D32_FLOAT;
+	svd.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	svd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+
 	rs = pDevice->CreateDepthStencilView(depthBuffer, &svd, &pDSV);
 	if (rs != S_OK)
 	{
@@ -715,14 +767,14 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	teapot.Create(pDevice, L"chest.obj");
+	teapot.Create(pDevice, L"plane.obj");
 	
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 
 	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
 	lights.light[0].dir = XMFLOAT4(0, -1, 0, 0);
 	//lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 0);
-	lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 0.5f);
+	lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 1);
 	lights.light[0].att = XMFLOAT4(0, 0, 0, 0);
 
 	lights.light[1].pos = XMFLOAT4(0, 0.1f, 0, 1);
@@ -830,7 +882,7 @@ bool DEMO_APP::Run()
 		{
 			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
 			XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
-			d.m128_f32[0] = -(float)timer.Delta() * 10;
+			d.m128_f32[0] = -(float)timer.Delta() ;
 			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 			d.m128_f32[1] = 0;
 			d.m128_f32[2] = 0;
@@ -855,7 +907,7 @@ bool DEMO_APP::Run()
 		{
 			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
 			XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
-			d.m128_f32[0] = (float)timer.Delta() * 10;
+			d.m128_f32[0] = (float)timer.Delta() ;
 			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 			d.m128_f32[1] = 0;
 			d.m128_f32[2] = 0;
@@ -872,7 +924,7 @@ bool DEMO_APP::Run()
 		}
 		else
 		{
-			lights.light[1].pos.z -= (float)timer.Delta() * 5;
+			lights.light[1].pos.z -= (float)timer.Delta() ;
 		}
 	}
 
@@ -884,10 +936,15 @@ bool DEMO_APP::Run()
 		}
 		else
 		{
-			lights.light[1].pos.z += (float)timer.Delta() * 5;
+			lights.light[1].pos.z += (float)timer.Delta() ;
 		}
 	}
-	grid.Draw(pDeviceContext);
+
+	if (GetAsyncKeyState('5') & 0x01)
+	{
+		teapot.ToogleBoundingBox();
+	}
+	//grid.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
 	return true; 
 }
@@ -942,7 +999,7 @@ void DEMO_APP::Resize(WORD width, WORD height)
 		td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 		td.Height = height;
 		td.Width = width;
-		td.Format = DXGI_FORMAT_D32_FLOAT;
+		td.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 		td.MipLevels = 1;
 		td.SampleDesc.Count = 1;
 		td.Usage = D3D11_USAGE_DEFAULT;
@@ -957,6 +1014,7 @@ void DEMO_APP::Resize(WORD width, WORD height)
 		pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
 		pDeviceContext->RSSetViewports(1, &viewPort);
 		camera.SetProjection(FOV, width, height, nearPlane, farPlane);
+		camera.Update((float)timer.Delta());
 	}
 }
 

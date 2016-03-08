@@ -66,8 +66,8 @@ void Camera::Update(float dt)
 	{
 		Fly(-dt);
 	}
-	frustum.Transform(frustum, GetViewProjectionMatrix());
 	XMStoreFloat4(&frustum.Orientation, XMVector4Normalize(XMLoadFloat4(&frustum.Orientation)));
+	frustum.Transform(frustum, GetViewProjectionMatrix());
 }
 
 void Camera::OnMouseDown(WPARAM btnState, WORD x, WORD y)

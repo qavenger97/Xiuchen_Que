@@ -62,6 +62,15 @@
     <FxCompile Include="skybox_PS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Debug_VS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Debug_PS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Debug_GS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

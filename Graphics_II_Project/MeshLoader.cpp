@@ -188,6 +188,42 @@ void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex>& 
 		verts.push_back(v);
 		indices.push_back(index++);
 
+		XMVECTOR v0 = XMLoadFloat3(&verts[index - 3].pos);
+		XMVECTOR v1 = XMLoadFloat3(&verts[index - 2].pos);
+		XMVECTOR v2 = XMLoadFloat3(&verts[index - 1].pos);
+		XMVECTOR w0 = XMLoadFloat3(&verts[index - 3].uv0);
+		XMVECTOR w1 = XMLoadFloat3(&verts[index - 2].uv0);
+		XMVECTOR w2 = XMLoadFloat3(&verts[index - 1].uv0);
+		XMVECTOR n[] = {
+			XMLoadFloat3(&verts[index - 3].normal) ,
+			XMLoadFloat3(&verts[index - 2].normal) ,
+			XMLoadFloat3(&verts[index - 1].normal) 
+		};
+
+		XMFLOAT3 vertEdge0; 
+		XMFLOAT3 vertEdge1; 
+		XMFLOAT3 texEdge0; 
+		XMFLOAT3 texEdge1; 
+
+		XMStoreFloat3(&vertEdge0, v1 - v0);
+		XMStoreFloat3(&vertEdge1, v2 - v0);
+		XMStoreFloat3(&texEdge0, w1 - w0);
+		XMStoreFloat3(&texEdge1, w2 - w0);
+
+		float ratio = 1.0f / (texEdge0.x*texEdge1.y - texEdge1.x*texEdge0.y);
+		XMVECTOR uDirection = XMLoadFloat3(&XMFLOAT3(
+			(texEdge1.y * vertEdge0.x - texEdge0.y * vertEdge1.x) * ratio,
+			(texEdge1.y * vertEdge0.y - texEdge0.y * vertEdge1.y) * ratio,
+			(texEdge1.y * vertEdge0.z - texEdge0.y * vertEdge1.z) * ratio
+			));
+
+		uDirection = XMVector3Normalize(uDirection);
+		for (int i = 0; i < 3; i++)
+		{
+			float dot = XMVector3Dot(n[i], uDirection).m128_f32[0];
+			XMStoreFloat3(&verts[index - (3 - i)].tengent, uDirection - dot * n[i]);
+		}
+
 		char i = fin.peek();
 		if (fin.peek() != '\n')
 		{
@@ -209,6 +245,44 @@ void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex>& 
 				indices.push_back(index);
 				indices.push_back(index - 3);
 				index++;
+
+				XMVECTOR v0 = XMLoadFloat3(&verts[index - 2].pos);
+				XMVECTOR v1 = XMLoadFloat3(&verts[index - 1].pos);
+				XMVECTOR v2 = XMLoadFloat3(&verts[index - 4].pos);
+				XMVECTOR w0 = XMLoadFloat3(&verts[index - 2].uv0);
+				XMVECTOR w1 = XMLoadFloat3(&verts[index - 1].uv0);
+				XMVECTOR w2 = XMLoadFloat3(&verts[index - 4].uv0);
+				XMVECTOR n[] = {
+					XMLoadFloat3(&verts[index - 2].normal) ,
+					XMLoadFloat3(&verts[index - 1].normal) ,
+					XMLoadFloat3(&verts[index - 4].normal)
+				};
+
+				XMFLOAT3 vertEdge0;
+				XMFLOAT3 vertEdge1;
+				XMFLOAT3 texEdge0;
+				XMFLOAT3 texEdge1;
+
+				XMStoreFloat3(&vertEdge0, v1 - v0);
+				XMStoreFloat3(&vertEdge1, v2 - v0);
+				XMStoreFloat3(&texEdge0, w1 - w0);
+				XMStoreFloat3(&texEdge1, w2 - w0);
+
+				float ratio = 1.0f / (texEdge0.x*texEdge1.y - texEdge1.x*texEdge0.y);
+				XMVECTOR uDirection = XMLoadFloat3(&XMFLOAT3(
+					(texEdge1.y * vertEdge0.x - texEdge0.y * vertEdge1.x) * ratio,
+					(texEdge1.y * vertEdge0.y - texEdge0.y * vertEdge1.y) * ratio,
+					(texEdge1.y * vertEdge0.z - texEdge0.y * vertEdge1.z) * ratio
+					));
+
+				uDirection = XMVector3Normalize(uDirection);
+
+				float dot = XMVector3Dot(n[0], uDirection).m128_f32[0];
+				XMStoreFloat3(&verts[index - 2].tengent, uDirection - dot * n[0]);
+				dot = XMVector3Dot(n[1], uDirection).m128_f32[0];
+				XMStoreFloat3(&verts[index - 1].tengent, uDirection - dot * n[1]); 
+				dot = XMVector3Dot(n[2], uDirection).m128_f32[0];
+				XMStoreFloat3(&verts[index - 4].tengent, uDirection - dot * n[2]);
 			}
 		}
 
@@ -216,20 +290,6 @@ void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex>& 
 		fin.getline(buffer, INT32_MAX, ' ');
 		check = buffer;
 	} while (check == "f");
-	XMMATRIX identity = XMMatrixIdentity();
-	for (auto o : verts)
-	{
-		XMVECTOR newN = XMLoadFloat3(&o.normal);
-
-		if (XMVector3Dot(newN, identity.r[1]).m128_f32[0] == 1)
-		{
-			XMStoreFloat3(&o.tengent, XMVector3Cross(identity.r[0], newN));
-		}
-		else
-		{
-			XMStoreFloat3(&o.tengent, XMVector3Cross(newN, identity.r[1]));
-		}
-	}
 
 	if (boundingBox)
 	{

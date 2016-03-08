@@ -121,10 +121,11 @@ float4 main( INPUT input ) : SV_TARGET
 {
 	float alpha = 2 * normal.Sample(filter, input.uv.xy).a - 1;
 	float2 newUV = normalize(input.eyeTengent).xy;
-	//newUV.y *= -1;
+	newUV.y *= -1;
+	//float2 offsetUV = input.uv.xy;
 	float2 offsetUV = alpha * newUV * material.heightOffset + input.uv.xy;
 
-	float4 nrmT = normal.Sample(filter, offsetUV);
+	float3 nrmT = normal.Sample(filter, offsetUV).xyz;
 	float4 specT = spec.Sample(filter, offsetUV);
 	float4 texColor = tex.Sample(filter, offsetUV);
 	nrmT = normalize((nrmT * 2 - 1.0f));
@@ -139,14 +140,14 @@ float4 main( INPUT input ) : SV_TARGET
 
 	float3x3 TBN = float3x3(ten, bin, nrn);
 
-	float3 surfaceNormal = (mul(nrmT.xyz, TBN));
+	float3 surfaceNormal = (mul(nrmT, TBN));
 
 
 	float4 ambientLight = float4((material.ambientColor * texColor.xyz).rgb,0);
 
 	float3 toEye = normalize(input.toEye);
 
-	float4 envColor = envMap.Sample(filter, reflect(surfaceNormal, toEye));
+	float4 envColor = envMap.Sample(filter, reflect(-toEye, surfaceNormal));
 
 	float4 diffuseLight_d;
 	ComputeLight(lights[0], input.posWorld, toEye, surfaceNormal, diffuseLight_d, specularLight_d);
@@ -163,6 +164,7 @@ float4 main( INPUT input ) : SV_TARGET
 	float f = pow((1 - saturate(dot(toEye, surfaceNormal))), material.fresnelPower) * material.fresnelIntensity;
 	float4 fresnel = float4(f, f, f, 0);
 	//return envColor;
+	//return float4(diffuseLight_p.xyz,1);
 	//return ambientLight + float4(((texColor * diffuseLight)).rgb, texColor.a);
 	//return ambientLight + float4(((texColor * diffuseLight) + specularLight).rgb, texColor.a);
 	return ambientLight + float4(((texColor * diffuseLight) + specularLight).rgb, texColor.a)* envColor + fresnel ;
