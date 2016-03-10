@@ -298,7 +298,7 @@ void MeshLoader::LoadOBJFromFile(const wchar_t * filePath, std::vector<Vertex>& 
 		for (size_t i = 0; i < v_pos.size(); i++)
 		{
 			vmin = XMVectorMin(vmin, XMLoadFloat3(&v_pos[i]));
-			vmax = XMVectorMin(vmax, XMLoadFloat3(&v_pos[i]));
+			vmax = XMVectorMax(vmax, XMLoadFloat3(&v_pos[i]));
 		}
 		XMStoreFloat3(&(boundingBox->Center), 0.5f*(vmin + vmax));
 		XMStoreFloat3(&(boundingBox->Extents), 0.5f*(vmax - vmin));

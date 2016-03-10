@@ -42,8 +42,6 @@ struct INPUT
 	float3 eyeTengent			: TEXCOORD5;
 };
 
-
-
 void ComputeSpecular(float4 lightColor, float3 surfacePos, float3 toEye, float3 surfaceNormal, float3 lightDir , out float4 specular)
 {
 	specular = float4(0, 0, 0, 0);
@@ -119,16 +117,17 @@ void ComputeLight(Light light, float3 surfacePos, float3 toEye, float3 surfaceNo
 
 float4 main( INPUT input ) : SV_TARGET
 {
-	float alpha = 2 * normal.Sample(filter, input.uv.xy).a - 1;
+	float height = 2 * (normal.Sample(filter, input.uv.xy).a - .5f);
 	float2 newUV = normalize(input.eyeTengent).xy;
-	newUV.y *= -1;
+	//height = 0;
+	//newUV.y *= -1;
 	//float2 offsetUV = input.uv.xy;
-	float2 offsetUV = alpha * newUV * material.heightOffset + input.uv.xy;
+	float2 offsetUV = height * newUV * material.heightOffset + input.uv.xy;
 
 	float3 nrmT = normal.Sample(filter, offsetUV).xyz;
 	float4 specT = spec.Sample(filter, offsetUV);
 	float4 texColor = tex.Sample(filter, offsetUV);
-	nrmT = normalize((nrmT * 2 - 1.0f));
+	nrmT = normalize((nrmT  - .5f)*2);
 
 	float3 nrn = normalize(input.normal);
 	float3 ten = normalize(input.tengent);
@@ -140,8 +139,7 @@ float4 main( INPUT input ) : SV_TARGET
 
 	float3x3 TBN = float3x3(ten, bin, nrn);
 
-	float3 surfaceNormal = (mul(nrmT, TBN));
-
+	float3 surfaceNormal = mul(nrmT, TBN);
 
 	float4 ambientLight = float4((material.ambientColor * texColor.xyz).rgb,0);
 
@@ -153,7 +151,6 @@ float4 main( INPUT input ) : SV_TARGET
 	ComputeLight(lights[0], input.posWorld, toEye, surfaceNormal, diffuseLight_d, specularLight_d);
 	float4 diffuseLight_p;
 	ComputeLight(lights[1], input.posWorld, toEye, surfaceNormal, diffuseLight_p, specularLight_p);
-
 	float4 diffuseLight_s;
 	ComputeLight(lights[2], input.posWorld, toEye, surfaceNormal, diffuseLight_s, specularLight_s);
 
@@ -167,5 +164,5 @@ float4 main( INPUT input ) : SV_TARGET
 	//return float4(diffuseLight_p.xyz,1);
 	//return ambientLight + float4(((texColor * diffuseLight)).rgb, texColor.a);
 	//return ambientLight + float4(((texColor * diffuseLight) + specularLight).rgb, texColor.a);
-	return ambientLight + float4(((texColor * diffuseLight) + specularLight).rgb, texColor.a)* envColor + fresnel ;
+	return ambientLight + float4((((texColor * diffuseLight) + specularLight) * envColor).rgb, texColor.a) + fresnel ;
 }

@@ -379,10 +379,10 @@ public:
 		BoundingBox bound;
 		MeshLoader::LoadOBJFromFile(filePath, v, index, &bound);
 		XMVECTOR c = XMLoadFloat3(&bound.Center);
-		XMVECTOR e = XMLoadFloat3(&bound.Extents) * 0.1f;
+		XMVECTOR e = XMLoadFloat3(&bound.Extents)*0.1f;
 		for (UINT i = 0; i < numInstance; i++)
 		{
-			XMStoreFloat3(&bounds[i].Center, c + XMLoadFloat4x4(&transform[i]).r[3]);
+			XMStoreFloat3(&bounds[i].Center, XMLoadFloat4x4(&transform[i]).r[3]);
 			XMStoreFloat3(&bounds[i].Extents, e);
 		}
 		
@@ -398,7 +398,7 @@ public:
 		gfx->CreateBuffer(&bd, &sd, &pVertexBuffer);
 
 		bd.ByteWidth = sizeof(BoundingBox) * numInstance;
-		sd.pSysMem = bounds;
+		sd.pSysMem = &bounds[0];
 		gfx->CreateBuffer(&bd, &sd, &pDebugBox);
 
 		bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -434,7 +434,7 @@ public:
 		gfx->CreateInputLayout(layout, ARRAYSIZE(layout), Trivial_VS, ARRAYSIZE(Trivial_VS), &pLayout);
 		D3D11_INPUT_ELEMENT_DESC debugLayout[] =
 		{
-			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0						   , D3D11_INPUT_PER_VERTEX_DATA,0,
+			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0,
 			"TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0,
 		};
 		gfx->CreateInputLayout(debugLayout, ARRAYSIZE(debugLayout), Debug_VS, ARRAYSIZE(Debug_VS), &pDebugLayout);
@@ -470,7 +470,6 @@ public:
 		D3D11_MAPPED_SUBRESOURCE mr = {};
 		ConstantPerObject cb;
 
-
 		XMStoreFloat4x4(&cb.viewInverse, camera.GetViewMatrix());
 		XMStoreFloat4x4(&cb.projectionMatrix, camera.GetProjectionMatrix());
 		XMStoreFloat4x4(&cb.view, camera.GetViewMatrixInverse());
@@ -491,26 +490,27 @@ public:
 				data[numVisInstance++] = transform[i];
 			}
 		}
-
 		gfx->Unmap(pInstanceBuffer, 0);
-
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 		gfx->VSSetConstantBuffers(1, 1, &pInstanceBuffer);
 		gfx->DrawIndexedInstanced(numIndex, numVisInstance, 0, 0, 0);
 
 		if (debug)
 		{
+			UINT stride_debug = sizeof BoundingBox;
+			UINT offset_debug = 0;
 			gfx->IASetInputLayout(pDebugLayout);
 
 			gfx->VSSetShader(pDebug_VS, 0, 0);
+			gfx->IASetVertexBuffers(0, 1, &pDebugBox,&stride_debug,&offset_debug);
 			gfx->GSSetShader(pDebug_GS, 0, 0);
 			gfx->PSSetShader(pDebug_PS, 0, 0);
-
+			gfx->GSSetConstantBuffers(0, 1, &pConstantBuffer);
+			gfx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 			gfx->Draw(numInstance, 0);
 			gfx->GSSetShader(nullptr,0,0);
 		}
 		//gfx->DrawIndexed(numIndex, 0, 0);
-		
 	}
 };
 
@@ -592,7 +592,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	RECT window_size = { 0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT };
 	AdjustWindowRect(&window_size, WS_OVERLAPPEDWINDOW, false);
 
-	window = CreateWindow(L"DirectXApplication", L"Lab 1a Line Land", WS_OVERLAPPEDWINDOW,
+	window = CreateWindow(L"DirectXApplication", L"Graphics II Project", WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT, window_size.right - window_size.left, window_size.bottom - window_size.top,
 		NULL, NULL, application, this);
 
@@ -767,7 +767,7 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	teapot.Create(pDevice, L"plane.obj");
+	teapot.Create(pDevice, L"chest.obj");
 	
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 
