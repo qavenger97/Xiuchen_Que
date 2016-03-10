@@ -349,10 +349,12 @@ class Mesh
 	UINT numIndex;
 	UINT numInstance;
 	bool debug;
+	float scale;
 public:
 	Mesh()
 	{
 		numInstance = 100;
+		scale = 0.3f;
 		debug = false;
 	}
 
@@ -362,13 +364,16 @@ public:
 	}
 
 	void Create(ID3D11Device* gfx, const wchar_t* filePath)
-	{for(UINT y = 0; y < 10; y++)
+	{
+		for(UINT y = 0; y < 10; y++)
 		{
 			for (UINT x = 0; x < 10; x++)
 			{
 				UINT i = y * 10 + x;
-				XMStoreFloat4x4(&transform[i], XMMatrixIdentity());
-				XMStoreFloat4x4(&transform[i], XMMatrixScaling(0.1f, 0.1f, 0.1f));
+				XMMATRIX transformation = XMMatrixIdentity();
+				transformation = transformation * XMMatrixScaling(scale, scale, scale);
+				transformation = transformation * XMMatrixRotationY(DegreeToRadian(x*36.0f));
+				XMStoreFloat4x4(&transform[i], transformation);
 				transform[i].m[3][0] = x * 10.0f - 50;
 				transform[i].m[3][2] = y * 10.0f - 50;
 			}
@@ -378,15 +383,15 @@ public:
 		std::vector<UINT> index;
 		BoundingBox bound;
 		MeshLoader::LoadOBJFromFile(filePath, v, index, &bound);
-		XMVECTOR c = XMLoadFloat3(&bound.Center);
-		XMVECTOR e = XMLoadFloat3(&bound.Extents)*0.1f;
+		XMVECTOR c = XMLoadFloat3(&bound.Center)*scale;
+		XMVECTOR e = XMLoadFloat3(&bound.Extents)*scale;
+
 		for (UINT i = 0; i < numInstance; i++)
 		{
-			XMStoreFloat3(&bounds[i].Center, XMLoadFloat4x4(&transform[i]).r[3]);
+			XMStoreFloat3(&bounds[i].Center, c + XMLoadFloat4x4(&transform[i]).r[3]);
 			XMStoreFloat3(&bounds[i].Extents, e);
 		}
 		
-
 		numIndex = (UINT)index.size();
 
 		D3D11_BUFFER_DESC bd = {};
