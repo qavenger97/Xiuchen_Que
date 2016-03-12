@@ -14,6 +14,7 @@ void SamplerStates::CreateSamplerStates(ID3D11Device * gfx)
 	spd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 	spd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 	spd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	spd.MaxLOD = 10;
 	gfx->CreateSamplerState(&spd, &AnisotroicSampler);
 	spd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 	gfx->CreateSamplerState(&spd, &LinearSampler);
