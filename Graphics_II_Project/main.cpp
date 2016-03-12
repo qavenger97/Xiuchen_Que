@@ -354,8 +354,8 @@ public:
 	Mesh()
 	{
 		numInstance = 100;
-		scale = 0.3f;
 		debug = false;
+		scale = 0.1f;
 	}
 
 	void ToogleBoundingBox()
@@ -364,8 +364,7 @@ public:
 	}
 
 	void Create(ID3D11Device* gfx, const wchar_t* filePath)
-	{
-		for(UINT y = 0; y < 10; y++)
+	{for(UINT y = 0; y < 10; y++)
 		{
 			for (UINT x = 0; x < 10; x++)
 			{
@@ -383,15 +382,15 @@ public:
 		std::vector<UINT> index;
 		BoundingBox bound;
 		MeshLoader::LoadOBJFromFile(filePath, v, index, &bound);
-		XMVECTOR c = XMLoadFloat3(&bound.Center)*scale;
-		XMVECTOR e = XMLoadFloat3(&bound.Extents)*scale;
-
+		XMVECTOR c = XMLoadFloat3(&bound.Center) * scale;
+		XMVECTOR e = XMLoadFloat3(&bound.Extents) * scale;
 		for (UINT i = 0; i < numInstance; i++)
 		{
 			XMStoreFloat3(&bounds[i].Center, c + XMLoadFloat4x4(&transform[i]).r[3]);
 			XMStoreFloat3(&bounds[i].Extents, e);
 		}
 		
+
 		numIndex = (UINT)index.size();
 
 		D3D11_BUFFER_DESC bd = {};

@@ -26,11 +26,10 @@ void Camera::SetCubemap(ID3D11Device* gfx, const wchar_t * filePath)
 void Camera::SetProjection(float FOV, float width, float height, float nearZ, float farZ)
 {
 	float aspectRatio = width / height;
-	XMMATRIX p = XMMatrixPerspectiveFovLH(FOV, aspectRatio, nearZ, farZ);
-	XMStoreFloat4x4(&proj, p);
-	BoundingFrustum::CreateFromMatrix(frustum, p);
+	XMStoreFloat4x4(&proj, XMMatrixPerspectiveFovLH(FOV, aspectRatio, nearZ, farZ));
+	BoundingFrustum::CreateFromMatrix(frustum, XMLoadFloat4x4(&proj));
 	
-	frustum.Transform(frustum, GetViewProjectionMatrix());
+	frustum.Transform(frustum, GetViewMatrixInverse());
 }
 
 void Camera::Update(float dt)
@@ -67,7 +66,7 @@ void Camera::Update(float dt)
 	{
 		Fly(-dt);
 	}
-	XMStoreFloat4(&frustum.Orientation,	XMQuaternionNormalize(XMLoadFloat4(&frustum.Orientation)));
+	XMStoreFloat4(&frustum.Orientation, XMVector4Normalize(XMLoadFloat4(&frustum.Orientation)));
 }
 
 void Camera::OnMouseDown(WPARAM btnState, WORD x, WORD y)
@@ -101,11 +100,13 @@ void Camera::Forward(float speed)
 	XMVECTOR vel = XMVectorSet(0, 0, speed, 1);
 	XMMATRIX mat = XMLoadFloat4x4(&transform);
 	XMVECTOR pos = mat.r[3];
+
 	mat.r[3] = XMVectorSet(0, 0, 0, 1);
 	vel = XMVector3Transform(vel, mat);
 	vel.m128_f32[3] = 0;
 	mat.r[3] = pos + vel;
 	XMStoreFloat4x4(&transform, mat);
+
 
 	pos = XMLoadFloat3(&frustum.Origin);
 	pos += vel;
@@ -117,11 +118,13 @@ void Camera::Strafe(float speed)
 	XMVECTOR vel = XMVectorSet(speed, 0, 0, 1);
 	XMMATRIX mat = XMLoadFloat4x4(&transform);
 	XMVECTOR pos = mat.r[3];
+
 	mat.r[3] = XMVectorSet(0, 0, 0, 1);
 	vel = XMVector3Transform(vel, mat);
 	vel.m128_f32[3] = 0;
 	mat.r[3] = pos + vel;
 	XMStoreFloat4x4(&transform, mat);
+
 
 	pos = XMLoadFloat3(&frustum.Origin);
 	pos += vel;
@@ -154,7 +157,11 @@ void Camera::Yaw(float speed)
 	trans = trans*rotY;
 	trans.r[3] = pos;
 	XMStoreFloat4x4(&transform, trans);
-	frustum.Transform(frustum, rotY);
+
+
+	XMVECTOR r = XMQuaternionRotationMatrix(rotY);
+	XMVECTOR q = XMLoadFloat4(&frustum.Orientation);
+	XMStoreFloat4(&frustum.Orientation, XMQuaternionMultiply(q, r));
 }
 
 void Camera::Pitch(float speed)
@@ -163,9 +170,11 @@ void Camera::Pitch(float speed)
 	XMMATRIX trans = XMLoadFloat4x4(&transform);
 	trans = rotX*trans;
 	XMStoreFloat4x4(&transform, trans);
+
+
 	XMVECTOR r = XMQuaternionRotationMatrix(rotX);
 	XMVECTOR q = XMLoadFloat4(&frustum.Orientation);
-	//XMStoreFloat4(&frustum.Orientation, r*q);
+	XMStoreFloat4(&frustum.Orientation, XMQuaternionMultiply(r, q));
 }
 
 void Camera::DrawSkybox(ID3D11DeviceContext * gfx)
