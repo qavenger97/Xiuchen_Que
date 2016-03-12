@@ -119,9 +119,7 @@ float4 main( INPUT input ) : SV_TARGET
 {
 	float height = 2 * (normal.Sample(filter, input.uv.xy).a - .5f);
 	float2 newUV = normalize(input.eyeTengent).xy;
-	//height = 0;
-	//newUV.y *= -1;
-	//float2 offsetUV = input.uv.xy;
+
 	float2 offsetUV = height * newUV * material.heightOffset + input.uv.xy;
 
 	float3 nrmT = normal.Sample(filter, offsetUV).xyz;

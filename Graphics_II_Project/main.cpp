@@ -771,7 +771,7 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	teapot.Create(pDevice, L"chest.obj");
+	teapot.Create(pDevice, L"plane.obj");
 	
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 

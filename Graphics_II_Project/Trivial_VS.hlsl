@@ -46,8 +46,8 @@ OUTPUT main( INPUT input, uint id : SV_InstanceID )
 	output.posWorld = mul(coord, world[id]).xyz;
 	output.uv = input.uvw;
 
-	float3 normal = normalize(input.normal);
-	float3 tengent = normalize(input.tengent);
+	float3 normal = (input.normal);
+	float3 tengent = (input.tengent);
 	float3 biTengent = (cross(normal,tengent));
 
 	output.normal = (mul(normal, world3x3));
