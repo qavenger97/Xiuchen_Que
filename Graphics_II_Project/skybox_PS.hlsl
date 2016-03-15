@@ -9,5 +9,5 @@ struct INPUT
 
 float4 main(INPUT input) :SV_TARGET
 {
-	return tex.SampleLevel(filter, input.lookup, 4);
+	return tex.SampleLevel(filter, input.lookup, .0f);
 }

@@ -39,14 +39,10 @@ struct Light
 
 struct Material
 {
-	XMFLOAT3 ambientColor;
 	FLOAT	 specularPower;
-	XMFLOAT3 diffuseColor;
 	FLOAT	 fresnelPower;
-	XMFLOAT3 specularColor;
 	FLOAT	 fresnelIntensity;
 	FLOAT	 heightOffset;
-	XMFLOAT3 pad;
 };
 
 struct LightBuffer

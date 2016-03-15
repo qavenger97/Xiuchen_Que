@@ -514,7 +514,6 @@ public:
 			gfx->Draw(numInstance, 0);
 			gfx->GSSetShader(nullptr,0,0);
 		}
-		//gfx->DrawIndexed(numIndex, 0, 0);
 	}
 };
 
@@ -749,9 +748,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	pDevice->CreateBlendState(&blendDesc, &pOverlay);
 
-	CreateDDSTextureFromFile(pDevice, L"MAT_D.dds", nullptr, &pSRV);
-	CreateDDSTextureFromFile(pDevice, L"MAT_N.dds", nullptr, &pSRV1);
-	CreateDDSTextureFromFile(pDevice, L"MAT_S.dds", nullptr, &pSRV2);
+	CreateDDSTextureFromFile(pDevice, L"C.dds", nullptr, &pSRV);
+	CreateDDSTextureFromFile(pDevice, L"N.dds", nullptr, &pSRV1);
+	CreateDDSTextureFromFile(pDevice, L"R.dds", nullptr, &pSRV2);
 
 	samplers.CreateSamplerStates(pDevice);
 	InitResources();
@@ -771,14 +770,14 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	teapot.Create(pDevice, L"plane.obj");
+	teapot.Create(pDevice, L"chest.obj");
 	
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 
 	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
 	lights.light[0].dir = XMFLOAT4(0, -1, 0, 0);
 	//lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 0);
-	lights.light[0].color = XMFLOAT4(0.9f, 0.7f, 0.7f, 1);
+	lights.light[0].color = XMFLOAT4(0.7f, 0.7f, 0.7f, .5f);
 	lights.light[0].att = XMFLOAT4(0, 0, 0, 0);
 
 	lights.light[1].pos = XMFLOAT4(0, 0.1f, 0, 1);
@@ -794,9 +793,6 @@ void DEMO_APP::InitResources()
 	lights.material.fresnelIntensity = 0.4f;
 	lights.material.fresnelPower = 20;
 	lights.material.specularPower = 20;
-	lights.material.ambientColor = XMFLOAT3(0.14f, 0.13f, 0.13f);
-	lights.material.diffuseColor = XMFLOAT3(1, 1, 1);
-	lights.material.specularColor = XMFLOAT3(0.7f, 0.68f, 0.0f);
 	lights.material.heightOffset = 0.01f;
 }
 bool DEMO_APP::Run()
