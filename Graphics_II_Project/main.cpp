@@ -828,7 +828,7 @@ void DEMO_APP::InitResources()
 	lights.light[2].att = XMFLOAT4(0.99f, 0.92f, 20, 2);
 	lights.material.fresnelIntensity = 0.4f;
 	lights.material.fresnelPower = 20;
-	lights.material.specularPower = 20;
+	lights.material.specularPower = 10;
 	lights.material.heightOffset = 0.02f;
 }
 bool DEMO_APP::Run()

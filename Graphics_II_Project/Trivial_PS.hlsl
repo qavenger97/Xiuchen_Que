@@ -140,7 +140,8 @@ float4 main( INPUT input ) : SV_TARGET
 
 	float3 reflection = reflect(-toEye, surfaceNormal);
 	float3 lookup = mul(reflection, (float3x3)(skyMatrix));
-	float4 envColor = envMap.SampleLevel(filter, lookup, specT.x * 10);
+	//float4 envColor = envMap.Sample(filter, lookup);
+	float4 envColor = envMap.SampleLevel(filter, lookup, specT.x * 8);
 
 	float4 diffuseLight_d;
 	ComputeLight(lights[0], input.posWorld, toEye, surfaceNormal, diffuseLight_d, specularLight_d);
@@ -149,20 +150,24 @@ float4 main( INPUT input ) : SV_TARGET
 	float4 diffuseLight_s;
 	ComputeLight(lights[2], input.posWorld, toEye, surfaceNormal, diffuseLight_s, specularLight_s);
 
-	float4 diffuseLight = (diffuseLight_d + diffuseLight_p + diffuseLight_s);
+	float4 diffuseLight = (diffuseLight_d + diffuseLight_p + diffuseLight_s) + envColor * (1 - specT.x);
 
-	float4 specularLight = (specularLight_d + specularLight_p + specularLight_s)* specT.y + envColor * (1 - specT.x);
+	float4 specularLight = (specularLight_d + specularLight_p + specularLight_s) + envColor;
 
-	diffuseLight = lerp(envColor, diffuseLight, specT.x);/*
-	specularLight = lerp(envColor, specularLight, specT.y);*/
-	float f = pow((1 - saturate(dot(toEye, surfaceNormal))), material.fresnelPower) * specT.y;
-	float3 fresnel = float3(f, f, f);
-	emissive += fresnel;
+	diffuseLight += specularLight*0.04f;
+
+	//
+	//float f = pow((1 - saturate(dot(toEye, surfaceNormal))), material.fresnelPower) * (1- specT.x);
+	//float3 fresnel = float3(f, f, f);
+	//emissive += fresnel;
+	//
+
 	//return envColor;
 	//return float4(diffuseLight.xyz, 1);
 	//return float4(specularLight.xyz, 1);
 	//return float4(diffuseLight_p.xyz,1);
 	//return ambientLight + float4(((texColor * diffuseLight)).rgb, texColor.a);
 	//return ambientLight + float4(((texColor * diffuseLight) + specularLight).rgb, texColor.a);
-	return float4((texColor *(diffuseLight + specularLight)).rgb + emissive, texColor.a) ;
+	return float4((texColor * lerp(diffuseLight, specularLight, specT.y)).rgb + emissive, texColor.a);
+	//return float4((texColor *(diffuseLight + specularLight)).rgb + emissive, texColor.a) ;
 }
