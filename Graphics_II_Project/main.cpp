@@ -604,11 +604,12 @@ class DEMO_APP
 	ID3D11DepthStencilView* pDSV = 0;
 	D3D11_VIEWPORT viewPort;
 
-	ID3D11Buffer* pVertexBuffer = 0;
-	ID3D11Buffer* pIndexBuffer = 0;
+	//ID3D11Buffer* pVertexBuffer = 0;
+	//ID3D11Buffer* pIndexBuffer = 0;
 	ID3D11Buffer* pConstantBuffer = 0;
 	ID3D11Buffer* pDepthBuffer = 0;
 	ID3D11Buffer* pLightsBuffer = 0;
+	ID3D11Buffer* pPostBuffer = 0;
 	ID3D11RasterizerState* pRasterizerState = 0;
 	ID3D11RasterizerState* pRasterizerState_back = 0;
 	ID3D11BlendState* pOverlay = 0;
@@ -624,11 +625,14 @@ class DEMO_APP
 	ID3D11ShaderResourceView* pSRV2 = 0;
 	ID3D11ShaderResourceView* pPostRsc = 0;
 	ID3D11ShaderResourceView* pDepthRsc = 0;
+	ID3D11ShaderResourceView* pFlatNormal = 0;
 	SamplerStates samplers;
 	ConstantPerObject cb;
+	Wave wave;
 	Mesh mesh;
 	Mesh mesh1;
 	Mesh hole;
+	Mesh mesh2;
 	Grid grid;
 	Star star;
 	LightBuffer lights;
@@ -655,7 +659,7 @@ public:
 
 DEMO_APP* g_myApp;
 
-DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1(0.1f)
+DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1(0.1f), mesh2(0.02f)
 {
 	// ****************** BEGIN WARNING ***********************// 
 	// WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY! 
@@ -760,6 +764,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 		bd.ByteWidth = sizeof(lights);
 		rs = pDevice->CreateBuffer(&bd, 0, &pLightsBuffer);
 		
+		bd.ByteWidth = sizeof(Wave);
+		pDevice->CreateBuffer(&bd, 0, &pPostBuffer);
 	}
 
 	ID3D11Texture2D* depthBuffer = 0;
@@ -852,9 +858,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 	blendDesc.RenderTarget[0].RenderTargetWriteMask = 0x0f;
 	blendDesc.AlphaToCoverageEnable = true;
 	pDevice->CreateBlendState(&blendDesc, &pOverlay);
-	CreateDDSTextureFromFile(pDevice, L"C.dds", nullptr, &pSRV);
-	CreateDDSTextureFromFile(pDevice, L"N.dds", nullptr, &pSRV1);
-	CreateDDSTextureFromFile(pDevice, L"R.dds", nullptr, &pSRV2);
 
 	samplers.CreateSamplerStates(pDevice);
 	D3D11_DEPTH_STENCIL_DESC cdsd = {};
@@ -902,7 +905,13 @@ void DEMO_APP::InitResources()
 	mesh.Create(pDevice, L"plane.obj");
 	mesh1.Create(pDevice, L"plane.obj", 0.3f);
 	hole.Create(pDevice, L"plane.obj", 0.3f);
+	mesh2.Create(pDevice, L"plane.obj", 0.3f);
 	camera.SetCubemap(pDevice, L"Cube_City.dds");
+
+	CreateDDSTextureFromFile(pDevice, L"C.dds", nullptr, &pSRV);
+	CreateDDSTextureFromFile(pDevice, L"N.dds", nullptr, &pSRV1);
+	CreateDDSTextureFromFile(pDevice, L"R.dds", nullptr, &pSRV2);
+	CreateDDSTextureFromFile(pDevice, L"FLAT_N.dds", nullptr, &pFlatNormal);
 
 	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
 	lights.light[0].dir = XMFLOAT4(0, -1, 0, 0);
@@ -923,8 +932,12 @@ void DEMO_APP::InitResources()
 	lights.material.fresnelIntensity = 0.9f;
 	lights.material.fresnelPower = 1;
 	lights.material.specularPower = 10;
-	lights.material.heightOffset = 0.02f;
+	lights.material.heightOffset = 0.04f;
 	post = new PostQuad(pDevice);
+
+	wave.amplitude = 0.01f;
+	wave.frequency = 50;
+	wave.speed = 0;
 }
 bool DEMO_APP::Run()
 {
@@ -939,6 +952,7 @@ bool DEMO_APP::Run()
 	XMStoreFloat4(&lights.light[2].pos, camera.GetPos().r[3]);
 	lights.light[2].pos.w = 2;
 	static float dir = 1;
+
 	if (animate)
 	{
 		if (lights.material.fresnelIntensity <= -1)
@@ -950,7 +964,7 @@ bool DEMO_APP::Run()
 		{
 			dir = 1;
 		}
-		lights.material.fresnelIntensity -= dt * dir;
+		lights.material.fresnelIntensity -= dt*0.1f * dir;
 	}
 	
 
@@ -1047,9 +1061,7 @@ bool DEMO_APP::Run()
 		{	
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
-				lights.material.fresnelPower -= dt;
-				if (lights.material.fresnelPower < 0) lights.material.fresnelPower = 0;
-				//lights.material.heightOffset -= 0.0001f;
+				wave.amplitude -= dt*0.01f;
 			}
 			else
 			{
@@ -1074,9 +1086,7 @@ bool DEMO_APP::Run()
 
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
-				lights.material.fresnelPower += dt;
-				if (lights.material.fresnelPower > 1) lights.material.fresnelPower = 1;
-				//lights.material.heightOffset += 0.0001f;
+				wave.amplitude += dt*0.01f;
 			}
 			else
 			{
@@ -1095,8 +1105,7 @@ bool DEMO_APP::Run()
 		{
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
-				lights.material.fresnelIntensity += dt;
-				if (lights.material.fresnelIntensity > 1) lights.material.fresnelIntensity = 1;
+				wave.frequency+=dt*10;
 			}
 			else
 			{
@@ -1108,8 +1117,7 @@ bool DEMO_APP::Run()
 		{
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
-				lights.material.fresnelIntensity -= dt;
-				if (lights.material.fresnelIntensity < -1) lights.material.fresnelIntensity = -1;
+				wave.frequency-=dt*10;
 			}
 			else
 			{
@@ -1123,13 +1131,23 @@ bool DEMO_APP::Run()
 		}
 	}
 	//pDeviceContext->ClearState();
+	wave.speed += dt;
 
 	pDeviceContext->OMSetRenderTargets(1, &pRTV, nullptr);
 	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
 	pDeviceContext->RSSetViewports(1, &viewPort);
 	pDeviceContext->PSSetShaderResources(0, 1, &pPostRsc);
 	pDeviceContext->PSSetShaderResources(1, 1, &pDepthRsc);
+	pDeviceContext->PSSetConstantBuffers(0, 1, &pPostBuffer);
+	pDeviceContext->UpdateSubresource(pPostBuffer, 0, 0, &wave, 0, 0);
 	post->Draw(pDeviceContext);
+
+	pDeviceContext->PSSetShaderResources(0, 1, &pPostRsc); 
+	pDeviceContext->PSSetShaderResources(1, 1, &pFlatNormal);
+	pDeviceContext->PSSetShaderResources(2, 1, &pSRV2);
+	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
+	pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
+	mesh2.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
 	pDeviceContext->ClearState();
 	return true; 
@@ -1153,13 +1171,14 @@ bool DEMO_APP::ShutDown()
 	if (pStencilDraw)pStencilDraw->Release();
 	if (pStencilClip)pStencilClip->Release();
 	if (pStencilDisable)pStencilDisable->Release();
-
+	if (pFlatNormal)pFlatNormal->Release();
 	if (pRasterizerState)pRasterizerState->Release();
+	if (pPostBuffer)pPostBuffer->Release();
 	if (pDepthBuffer)pDepthBuffer->Release();
 	if (pLightsBuffer)pLightsBuffer->Release();
 	if (pConstantBuffer)pConstantBuffer->Release();
-	if (pIndexBuffer)pIndexBuffer->Release();
-	if (pVertexBuffer) pVertexBuffer->Release();
+	//if (pIndexBuffer)pIndexBuffer->Release();
+	//if (pVertexBuffer) pVertexBuffer->Release();
 	if (pPostRsc)pPostRsc->Release();
 	if (pDepthRsc)pDepthRsc->Release();
 	if (pDSV)pDSV->Release();

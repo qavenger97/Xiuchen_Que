@@ -48,6 +48,14 @@ struct Material
 	FLOAT	 heightOffset;
 };
 
+struct Wave
+{
+	FLOAT	frequency;
+	FLOAT   speed;
+	FLOAT   amplitude;
+	FLOAT   pad;
+};
+
 struct LightBuffer
 {
 	Light light[3];
