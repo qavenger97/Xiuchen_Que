@@ -808,7 +808,7 @@ void DEMO_APP::InitResources()
 	mesh.Create(pDevice, L"plane.obj");
 	mesh1.Create(pDevice, L"plane.obj", 0.3f);
 	hole.Create(pDevice, L"plane.obj", 0.3f);
-	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
+	camera.SetCubemap(pDevice, L"Cube_City.dds");
 
 	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
 	lights.light[0].dir = XMFLOAT4(0, -1, 0, 0);
@@ -839,16 +839,6 @@ bool DEMO_APP::Run()
 	XMStoreFloat4(&lights.light[2].pos, camera.GetPos().r[3]);
 	lights.light[2].pos.w = 2;
 	
-
-	if (GetAsyncKeyState('1') & 0x01)
-	{
-		camera.SetCubemap(pDevice, L"Cube_Lake.dds");
-	}
-	if (GetAsyncKeyState('2') & 0x01)
-	{
-		camera.SetCubemap(pDevice, L"Cube_Desert.dds");
-	}
-
 	D3D11_MAPPED_SUBRESOURCE ms = {};
 	XMStoreFloat4x4(&cb.viewInverse, camera.GetPos() * camera.GetViewProjectionMatrix());
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
@@ -901,11 +891,27 @@ bool DEMO_APP::Run()
 	//HandleControl
 	{
 
-
+		if (GetAsyncKeyState('1') & 0x01)
+		{
+			camera.SetCubemap(pDevice, L"Cube_Lake.dds");
+		}
+		if (GetAsyncKeyState('2') & 0x01)
+		{
+			camera.SetCubemap(pDevice, L"Cube_Desert.dds");
+		}
 		if (GetAsyncKeyState('3') & 0x01)
 		{
-			grid.ToogleState(pDeviceContext);
+			camera.SetCubemap(pDevice, L"Cube_Mountain.dds");
 		}
+		if (GetAsyncKeyState('4') & 0x01)
+		{
+			camera.SetCubemap(pDevice, L"Cube_City.dds");
+		}
+
+		//if (GetAsyncKeyState('3') & 0x01)
+		//{
+		//	grid.ToogleState(pDeviceContext);
+		//}
 
 		if (GetAsyncKeyState(VK_F2))
 		{
