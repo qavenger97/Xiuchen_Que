@@ -48,7 +48,7 @@ OUTPUT main( INPUT input, uint id : SV_InstanceID )
 
 	float3 normal = (input.normal);
 	float3 tengent = (input.tengent);
-	float3 biTengent = (cross(normal,tengent));
+	float3 binormal = (cross(normal,tengent));
 
 	output.normal = (mul(normal, world3x3));
 	output.tengent = (mul(tengent, world3x3));
@@ -56,9 +56,9 @@ OUTPUT main( INPUT input, uint id : SV_InstanceID )
 
 	output.toEye = normalize(view[3].xyz - output.posWorld);
 
-	float3x3 toTengent = float3x3(tengent, biTengent, normal);
+	float3x3 toTengent = float3x3(output.tengent, output.binormal, output.normal);
 
-	output.eyeTengent = normalize(mul(output.toEye, toTengent));
-	output.eyeTengent.y *= -1;
+	output.eyeTengent = mul(output.toEye, toTengent);
+	//output.eyeTengent.y *= -1;
 	return output;
 }

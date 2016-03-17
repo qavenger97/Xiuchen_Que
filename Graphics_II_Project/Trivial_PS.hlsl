@@ -157,6 +157,8 @@ float4 main( INPUT input ) : SV_TARGET
 	float3 fresnel = float3(f, f, f);
 	//emissive += fresnel;
 	//return envColor;
+	//return float4(diffuseLight.xyz, 1);
+	//return float4(specularLight.xyz, 1);
 	//return float4(diffuseLight_p.xyz,1);
 	//return ambientLight + float4(((texColor * diffuseLight)).rgb, texColor.a);
 	//return ambientLight + float4(((texColor * diffuseLight) + specularLight).rgb, texColor.a);

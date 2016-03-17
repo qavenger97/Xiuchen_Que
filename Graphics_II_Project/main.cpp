@@ -351,11 +351,10 @@ class Mesh
 	bool debug;
 	float scale;
 public:
-	Mesh()
+	Mesh(float scale):scale(scale)
 	{
 		numInstance = 100;
 		debug = false;
-		scale = 0.1f;
 	}
 
 	void ToogleBoundingBox()
@@ -363,8 +362,9 @@ public:
 		debug = !debug;
 	}
 
-	void Create(ID3D11Device* gfx, const wchar_t* filePath)
-	{for(UINT y = 0; y < 10; y++)
+	void Create(ID3D11Device* gfx, const wchar_t* filePath, float z = 0)
+	{
+		for(UINT y = 0; y < 10; y++)
 		{
 			for (UINT x = 0; x < 10; x++)
 			{
@@ -375,6 +375,7 @@ public:
 				XMStoreFloat4x4(&transform[i], transformation);
 				transform[i].m[3][0] = x * 10.0f - 50;
 				transform[i].m[3][2] = y * 10.0f - 50;
+				transform[i].m[3][1] = z;
 			}
 		}
 
@@ -494,6 +495,7 @@ public:
 				data[numVisInstance++] = transform[i];
 			}
 		}
+
 		gfx->Unmap(pInstanceBuffer, 0);
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 		gfx->VSSetConstantBuffers(1, 1, &pInstanceBuffer);
@@ -538,7 +540,9 @@ class DEMO_APP
 	ID3D11RasterizerState* pRasterizerState = 0;
 	ID3D11RasterizerState* pRasterizerState_back = 0;
 	ID3D11BlendState* pOverlay = 0;
-
+	ID3D11DepthStencilState* pStencilDisable = 0;
+	ID3D11DepthStencilState* pStencilClip = 0;
+	ID3D11DepthStencilState* pStencilDraw = 0;
 	ID3D11InputLayout* pLayout = 0;
 	ID3D11VertexShader* vs = 0;
 	ID3D11PixelShader* ps = 0;
@@ -548,7 +552,9 @@ class DEMO_APP
 	ID3D11ShaderResourceView* pSRV2 = 0;
 	SamplerStates samplers;
 	ConstantPerObject cb;
-	Mesh teapot;
+	Mesh mesh;
+	Mesh mesh1;
+	Mesh hole;
 	Grid grid;
 	Star star;
 	LightBuffer lights;
@@ -573,7 +579,7 @@ public:
 
 DEMO_APP* g_myApp;
 
-DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
+DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1(0.1f)
 {
 	// ****************** BEGIN WARNING ***********************// 
 	// WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY! 
@@ -699,6 +705,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	svd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 
 	rs = pDevice->CreateDepthStencilView(depthBuffer, &svd, &pDSV);
+
 	if (rs != S_OK)
 	{
 		OutputDebugString(L"Create Depth Stencil View failed\n");
@@ -712,7 +719,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		"TEXCOORD", 1, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0,
 		"TEXCOORD", 2, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0
 	};
-
 
 	rs = pDevice->CreateInputLayout(layout, ARRAYSIZE(layout), Trivial_VS, ARRAYSIZE(Trivial_VS), &pLayout);
 	if (rs != S_OK)
@@ -744,7 +750,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
 
-	blendDesc.RenderTarget[0].RenderTargetWriteMask = 0x0f;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = 0;
 
 	pDevice->CreateBlendState(&blendDesc, &pOverlay);
 
@@ -753,9 +759,36 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	CreateDDSTextureFromFile(pDevice, L"R.dds", nullptr, &pSRV2);
 
 	samplers.CreateSamplerStates(pDevice);
+	D3D11_DEPTH_STENCIL_DESC cdsd = {};
+	cdsd.DepthEnable = true;
+	cdsd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	cdsd.DepthFunc = D3D11_COMPARISON_LESS;
+	cdsd.StencilEnable = true;
+	cdsd.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+	cdsd.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
+
+	cdsd.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+	cdsd.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	cdsd.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	cdsd.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
+
+	cdsd.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+	cdsd.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	cdsd.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	cdsd.BackFace.StencilFunc = D3D11_COMPARISON_NEVER;
+	pDevice->CreateDepthStencilState(&cdsd, &pStencilClip);
+
+	cdsd.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+	cdsd.FrontFace.StencilFailOp = D3D11_STENCIL_OP_INCR;
+	cdsd.FrontFace.StencilPassOp = D3D11_STENCIL_OP_INCR;
+	cdsd.FrontFace.StencilFunc = D3D11_COMPARISON_NEVER;
+	pDevice->CreateDepthStencilState(&cdsd, &pStencilDraw);
+
+	cdsd.StencilEnable = false;
+	pDevice->CreateDepthStencilState(&cdsd, &pStencilDisable);
+
+
 	InitResources();
-	float factor[] = { 1,1,1,1 };
-	pDeviceContext->OMSetBlendState(pOverlay, factor, 0xffffffff);
 	pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
 	pDeviceContext->RSSetViewports(1, &viewPort);
 	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
@@ -770,8 +803,9 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	teapot.Create(pDevice, L"chest.obj");
-	
+	mesh.Create(pDevice, L"plane.obj");
+	mesh1.Create(pDevice, L"plane.obj", 0.3f);
+	hole.Create(pDevice, L"plane.obj", 0.3f);
 	camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 
 	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
@@ -803,7 +837,7 @@ bool DEMO_APP::Run()
 	XMStoreFloat4(&lights.light[2].pos, camera.GetPos().r[3]);
 	lights.light[2].pos.w = 2;
 	pDeviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-
+	
 	D3D11_MAPPED_SUBRESOURCE ms;
 	ZeroMemory(&ms, sizeof(ms));
 
@@ -851,14 +885,20 @@ bool DEMO_APP::Run()
 	star.Draw(pDeviceContext);
 
 
-	teapot.Draw(pDeviceContext);
+	//static const float factor[] = { 1,1,1,1 };
+	pDeviceContext->OMSetDepthStencilState(pStencilDraw, 1);
+	hole.Draw(pDeviceContext);
 
+	pDeviceContext->OMSetDepthStencilState(pStencilClip, 1);
+	mesh1.Draw(pDeviceContext);
+
+	pDeviceContext->OMSetDepthStencilState(pStencilDisable, 0);
+	mesh.Draw(pDeviceContext);
 
 	if (GetAsyncKeyState('3') & 0x01)
 	{
 		grid.ToogleState(pDeviceContext);
 	}
-
 
 	if (GetAsyncKeyState(VK_F2))
 	{
@@ -942,7 +982,7 @@ bool DEMO_APP::Run()
 
 	if (GetAsyncKeyState('5') & 0x01)
 	{
-		teapot.ToogleBoundingBox();
+		mesh.ToogleBoundingBox();
 	}
 	//grid.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
@@ -963,6 +1003,11 @@ bool DEMO_APP::ShutDown()
 	if (ps)ps->Release();
 	if (vs)vs->Release();
 	if (pOverlay)pOverlay->Release();
+
+	if (pStencilDraw)pStencilDraw->Release();
+	if (pStencilClip)pStencilClip->Release();
+	if (pStencilDisable)pStencilDisable->Release();
+
 	if (pRasterizerState)pRasterizerState->Release();
 	if (pDepthBuffer)pDepthBuffer->Release();
 	if (pLightsBuffer)pLightsBuffer->Release();
