@@ -10,4 +10,5 @@ Hold Right Mouse to rotate Skybox
 F to turn on/off the spot light
 Arrow key to move the point light
 Shift + Left/Right to adjust the height of normal map(parallax mapping)
+Shift + Up/Down to fade in/out the texture
 F1/F2 to adjust the camera perspective

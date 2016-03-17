@@ -351,7 +351,7 @@ class Mesh
 	bool debug;
 	float scale;
 public:
-	Mesh(float scale):scale(scale)
+	Mesh(float scale = 1):scale(scale)
 	{
 		numInstance = 100;
 		debug = false;
@@ -564,6 +564,7 @@ class DEMO_APP
 	float FOV = DegreeToRadian(75);
 	WORD mouseX;
 	WORD mouseY;
+	BOOL animate = false;
 private:
 	void InitResources();
 public:	
@@ -751,10 +752,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
 
-	blendDesc.RenderTarget[0].RenderTargetWriteMask = 0;
-
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = 0x0f;
+	blendDesc.AlphaToCoverageEnable = true;
 	pDevice->CreateBlendState(&blendDesc, &pOverlay);
-
 	CreateDDSTextureFromFile(pDevice, L"C.dds", nullptr, &pSRV);
 	CreateDDSTextureFromFile(pDevice, L"N.dds", nullptr, &pSRV1);
 	CreateDDSTextureFromFile(pDevice, L"R.dds", nullptr, &pSRV2);
@@ -826,19 +826,35 @@ void DEMO_APP::InitResources()
 	//lights.light[2].color = XMFLOAT4(1, 1, 1, 0);
 	lights.light[2].color = XMFLOAT4(1, 1, 1, 1);
 	lights.light[2].att = XMFLOAT4(0.99f, 0.92f, 20, 2);
-	lights.material.fresnelIntensity = 0.4f;
-	lights.material.fresnelPower = 20;
+	lights.material.fresnelIntensity = 0.9f;
+	lights.material.fresnelPower = 1;
 	lights.material.specularPower = 10;
 	lights.material.heightOffset = 0.02f;
 }
 bool DEMO_APP::Run()
 {
 	timer.Signal();
-	camera.Update((float)timer.Delta());
+	float dt = (float)timer.Delta();
+	camera.Update(dt);
 	XMStoreFloat4(&lights.light[2].dir, camera.GetViewMatrixInverse().r[2]);
 	XMStoreFloat4(&lights.light[2].pos, camera.GetPos().r[3]);
 	lights.light[2].pos.w = 2;
+	static float dir = 1;
+	if (animate)
+	{
+		if (lights.material.fresnelIntensity <= -1)
+		{
+			dir = -1;
+		}
+
+		if (lights.material.fresnelIntensity >= 1)
+		{
+			dir = 1;
+		}
+		lights.material.fresnelIntensity -= dt * dir;
+	}
 	
+
 	D3D11_MAPPED_SUBRESOURCE ms = {};
 	XMStoreFloat4x4(&cb.viewInverse, camera.GetPos() * camera.GetViewProjectionMatrix());
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
@@ -878,10 +894,12 @@ bool DEMO_APP::Run()
 	star.Draw(pDeviceContext);
 
 
-	//static const float factor[] = { 1,1,1,1 };
+	static const float factor[] = { 1,1,1,1 };
+	pDeviceContext->OMSetBlendState(0, factor, 0xffffffff);
 	pDeviceContext->OMSetDepthStencilState(pStencilDraw, 1);
 	hole.Draw(pDeviceContext);
 
+	pDeviceContext->OMSetBlendState(pOverlay, factor, 0xffffffff);
 	pDeviceContext->OMSetDepthStencilState(pStencilClip, 1);
 	mesh1.Draw(pDeviceContext);
 
@@ -915,21 +933,24 @@ bool DEMO_APP::Run()
 
 		if (GetAsyncKeyState(VK_F2))
 		{
-			FOV += (FLOAT)timer.Delta();
+			FOV += dt;
 			camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
 		}
 		if (GetAsyncKeyState(VK_F1))
 		{
-			FOV -= (FLOAT)timer.Delta();
+			FOV -= dt;
 			camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
 		}
 
+		if (GetAsyncKeyState('K')& 0x01)animate = !animate;
 
 		if (GetAsyncKeyState(VK_LEFT))
 		{	
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
-				lights.material.heightOffset -= 0.0001f;
+				lights.material.fresnelPower -= dt;
+				if (lights.material.fresnelPower < 0) lights.material.fresnelPower = 0;
+				//lights.material.heightOffset -= 0.0001f;
 			}
 			else
 			{
@@ -954,13 +975,15 @@ bool DEMO_APP::Run()
 
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
-				lights.material.heightOffset += 0.0001f;
+				lights.material.fresnelPower += dt;
+				if (lights.material.fresnelPower > 1) lights.material.fresnelPower = 1;
+				//lights.material.heightOffset += 0.0001f;
 			}
 			else
 			{
 				XMVECTOR d = XMVectorSet(0, 0, 0, 0);
 				XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
-				d.m128_f32[0] = (float)timer.Delta() ;
+				d.m128_f32[0] = dt;
 				d = XMVector4Transform(d, camera.GetViewMatrixInverse());
 				d.m128_f32[1] = 0;
 				d.m128_f32[2] = 0;
@@ -973,7 +996,8 @@ bool DEMO_APP::Run()
 		{
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
-				lights.material.fresnelIntensity += (float)timer.Delta();
+				lights.material.fresnelIntensity += dt;
+				if (lights.material.fresnelIntensity > 1) lights.material.fresnelIntensity = 1;
 			}
 			else
 			{
@@ -985,11 +1009,12 @@ bool DEMO_APP::Run()
 		{
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
-				lights.material.fresnelIntensity -= (float)timer.Delta();
+				lights.material.fresnelIntensity -= dt;
+				if (lights.material.fresnelIntensity < -1) lights.material.fresnelIntensity = -1;
 			}
 			else
 			{
-				lights.light[1].pos.z += (float)timer.Delta() ;
+				lights.light[1].pos.z += dt;
 			}
 		}
 
