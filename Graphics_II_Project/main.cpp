@@ -344,7 +344,7 @@ class Mesh
 	ID3D11PixelShader* pDebug_PS = 0;
 	ID3D11GeometryShader* pDebug_GS = 0;
 	ID3D11InputLayout* pDebugLayout = 0;
-	XMFLOAT4X4 transform[100];
+	InstanceData transform[100];
 	BoundingBox bounds[100];
 	UINT numIndex;
 	UINT numInstance;
@@ -372,10 +372,11 @@ public:
 				XMMATRIX transformation = XMMatrixIdentity();
 				transformation = transformation * XMMatrixScaling(scale, scale, scale);
 				transformation = transformation * XMMatrixRotationY(DegreeToRadian(x*36.0f));
-				XMStoreFloat4x4(&transform[i], transformation);
-				transform[i].m[3][0] = x * 10.0f - 50;
-				transform[i].m[3][2] = y * 10.0f - 50;
-				transform[i].m[3][1] = z;
+				XMStoreFloat4x4(&transform[i].world, transformation);
+				transform[i].world.m[3][0] = x * 10.0f - 50;
+				transform[i].world.m[3][2] = y * 10.0f - 50;
+				transform[i].world.m[3][1] = z;
+				XMStoreFloat4x4(&transform[i].worldI, XMMatrixInverse(0, XMLoadFloat4x4(&transform[i].world)));
 			}
 		}
 
@@ -387,7 +388,7 @@ public:
 		XMVECTOR e = XMLoadFloat3(&bound.Extents) * scale;
 		for (UINT i = 0; i < numInstance; i++)
 		{
-			XMStoreFloat3(&bounds[i].Center, c + XMLoadFloat4x4(&transform[i]).r[3]);
+			XMStoreFloat3(&bounds[i].Center, c + XMLoadFloat4x4(&transform[i].world).r[3]);
 			XMStoreFloat3(&bounds[i].Extents, e);
 		}
 		
@@ -486,7 +487,7 @@ public:
 		D3D11_MAPPED_SUBRESOURCE tr = {};
 		gfx->Map(pInstanceBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &tr);
 		//memcpy(mr.pData, transform, sizeof(transform));
-		XMFLOAT4X4* data = reinterpret_cast<XMFLOAT4X4*>(tr.pData);
+		InstanceData* data = reinterpret_cast<InstanceData*>(tr.pData);
 		UINT numVisInstance = 0;
 		for (UINT i = 0; i < numInstance; i++)
 		{
@@ -800,6 +801,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 //************************************************************
 void DEMO_APP::InitResources()
 {
+	XMStoreFloat4x4(&cb.skyMatrix, XMMatrixIdentity());
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
@@ -827,7 +829,7 @@ void DEMO_APP::InitResources()
 	lights.material.fresnelIntensity = 0.4f;
 	lights.material.fresnelPower = 20;
 	lights.material.specularPower = 20;
-	lights.material.heightOffset = 0.01f;
+	lights.material.heightOffset = 0.02f;
 }
 bool DEMO_APP::Run()
 {
@@ -836,10 +838,7 @@ bool DEMO_APP::Run()
 	XMStoreFloat4(&lights.light[2].dir, camera.GetViewMatrixInverse().r[2]);
 	XMStoreFloat4(&lights.light[2].pos, camera.GetPos().r[3]);
 	lights.light[2].pos.w = 2;
-	pDeviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 	
-	D3D11_MAPPED_SUBRESOURCE ms;
-	ZeroMemory(&ms, sizeof(ms));
 
 	if (GetAsyncKeyState('1') & 0x01)
 	{
@@ -850,6 +849,7 @@ bool DEMO_APP::Run()
 		camera.SetCubemap(pDevice, L"Cube_Desert.dds");
 	}
 
+	D3D11_MAPPED_SUBRESOURCE ms = {};
 	XMStoreFloat4x4(&cb.viewInverse, camera.GetPos() * camera.GetViewProjectionMatrix());
 	pDeviceContext->Map(pConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms);
 	memcpy(ms.pData, &cb, sizeof(cb));
@@ -857,12 +857,14 @@ bool DEMO_APP::Run()
 	pDeviceContext->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 	camera.DrawSkybox(pDeviceContext);
 
+	pDeviceContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
 	pDeviceContext->IASetInputLayout(pLayout);
 	pDeviceContext->VSSetShader(vs, 0, 0);
 	pDeviceContext->PSSetShader(ps, 0, 0);
 
 	pDeviceContext->RSSetState(pRasterizerState);
-
+	lights.skyMatrix = cb.skyMatrix;
 	pDeviceContext->UpdateSubresource(pLightsBuffer, 0, 0, &lights, 0, 0);
 
 	static float angle = 0;
@@ -880,6 +882,7 @@ bool DEMO_APP::Run()
 	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
 	pDeviceContext->PSSetShaderResources(1, 1, &pSRV1);
 	pDeviceContext->PSSetShaderResources(2, 1, &pSRV2);
+
 	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
 
 	star.Draw(pDeviceContext);
@@ -895,94 +898,99 @@ bool DEMO_APP::Run()
 	pDeviceContext->OMSetDepthStencilState(pStencilDisable, 0);
 	mesh.Draw(pDeviceContext);
 
-	if (GetAsyncKeyState('3') & 0x01)
-	{
-		grid.ToogleState(pDeviceContext);
-	}
-
-	if (GetAsyncKeyState(VK_F2))
-	{
-		FOV += (FLOAT)timer.Delta();
-		camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
-	}
-	if (GetAsyncKeyState(VK_F1))
-	{
-		FOV -= (FLOAT)timer.Delta();
-		camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
-	}
-
-
-	if (GetAsyncKeyState(VK_LEFT))
-	{	
-		if (GetAsyncKeyState(VK_SHIFT))
-		{
-			lights.material.heightOffset -= 0.0001f;
-		}
-		else
-		{
-			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-			XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
-			d.m128_f32[0] = -(float)timer.Delta() ;
-			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
-			d.m128_f32[1] = 0;
-			d.m128_f32[2] = 0;
-			XMStoreFloat4(&lights.light[1].pos, d + pos);
-			lights.light[1].pos.w = 1;
-		}
-	}
-
-	if (GetAsyncKeyState('F') & 0x01)
-	{
-		lights.light[2].color.w = lights.light[2].color.w == 0 ? 1.0f : 0 ;
-	}
-
-	if (GetAsyncKeyState(VK_RIGHT))
+	//HandleControl
 	{
 
-		if (GetAsyncKeyState(VK_SHIFT))
-		{
-			lights.material.heightOffset += 0.0001f;
-		}
-		else
-		{
-			XMVECTOR d = XMVectorSet(0, 0, 0, 0);
-			XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
-			d.m128_f32[0] = (float)timer.Delta() ;
-			d = XMVector4Transform(d, camera.GetViewMatrixInverse());
-			d.m128_f32[1] = 0;
-			d.m128_f32[2] = 0;
-			XMStoreFloat4(&lights.light[1].pos, d + pos);
-			lights.light[1].pos.w = 1;
-		}
-	}
 
-	if (GetAsyncKeyState(VK_UP))
-	{
-		if (GetAsyncKeyState(VK_SHIFT))
+		if (GetAsyncKeyState('3') & 0x01)
 		{
-			lights.material.fresnelIntensity += (float)timer.Delta();
+			grid.ToogleState(pDeviceContext);
 		}
-		else
-		{
-			lights.light[1].pos.z -= (float)timer.Delta() ;
-		}
-	}
 
-	if (GetAsyncKeyState(VK_DOWN))
-	{
-		if (GetAsyncKeyState(VK_SHIFT))
+		if (GetAsyncKeyState(VK_F2))
 		{
-			lights.material.fresnelIntensity -= (float)timer.Delta();
+			FOV += (FLOAT)timer.Delta();
+			camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
 		}
-		else
+		if (GetAsyncKeyState(VK_F1))
 		{
-			lights.light[1].pos.z += (float)timer.Delta() ;
+			FOV -= (FLOAT)timer.Delta();
+			camera.SetProjection(FOV, viewPort.Width, viewPort.Height, nearPlane, farPlane);
 		}
-	}
 
-	if (GetAsyncKeyState('5') & 0x01)
-	{
-		mesh.ToogleBoundingBox();
+
+		if (GetAsyncKeyState(VK_LEFT))
+		{	
+			if (GetAsyncKeyState(VK_SHIFT))
+			{
+				lights.material.heightOffset -= 0.0001f;
+			}
+			else
+			{
+				XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+				XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
+				d.m128_f32[0] = -(float)timer.Delta() ;
+				d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+				d.m128_f32[1] = 0;
+				d.m128_f32[2] = 0;
+				XMStoreFloat4(&lights.light[1].pos, d + pos);
+				lights.light[1].pos.w = 1;
+			}
+		}
+
+		if (GetAsyncKeyState('F') & 0x01)
+		{
+			lights.light[2].color.w = lights.light[2].color.w == 0 ? 1.0f : 0 ;
+		}
+
+		if (GetAsyncKeyState(VK_RIGHT))
+		{
+
+			if (GetAsyncKeyState(VK_SHIFT))
+			{
+				lights.material.heightOffset += 0.0001f;
+			}
+			else
+			{
+				XMVECTOR d = XMVectorSet(0, 0, 0, 0);
+				XMVECTOR pos = XMLoadFloat4(&lights.light[1].pos);
+				d.m128_f32[0] = (float)timer.Delta() ;
+				d = XMVector4Transform(d, camera.GetViewMatrixInverse());
+				d.m128_f32[1] = 0;
+				d.m128_f32[2] = 0;
+				XMStoreFloat4(&lights.light[1].pos, d + pos);
+				lights.light[1].pos.w = 1;
+			}
+		}
+
+		if (GetAsyncKeyState(VK_UP))
+		{
+			if (GetAsyncKeyState(VK_SHIFT))
+			{
+				lights.material.fresnelIntensity += (float)timer.Delta();
+			}
+			else
+			{
+				lights.light[1].pos.z -= (float)timer.Delta() ;
+			}
+		}
+
+		if (GetAsyncKeyState(VK_DOWN))
+		{
+			if (GetAsyncKeyState(VK_SHIFT))
+			{
+				lights.material.fresnelIntensity -= (float)timer.Delta();
+			}
+			else
+			{
+				lights.light[1].pos.z += (float)timer.Delta() ;
+			}
+		}
+
+		if (GetAsyncKeyState('5') & 0x01)
+		{
+			mesh.ToogleBoundingBox();
+		}
 	}
 	//grid.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
@@ -1031,7 +1039,7 @@ void DEMO_APP::Resize(WORD width, WORD height)
 		viewPort.Width = width;
 		if (pDSV)pDSV->Release();
 		if (pRTV)pRTV->Release();
-		if (pSwapChain)pSwapChain->ResizeBuffers(1, width, height, DXGI_FORMAT_UNKNOWN, 0);
+		if (pSwapChain)pSwapChain->ResizeBuffers(1, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
 		ID3D11Texture2D* pBackBuffer;
 		pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
 
@@ -1069,12 +1077,13 @@ void DEMO_APP::OnMouseMove(WPARAM btnState, WORD x, WORD y)
 	{
 		float dx = DegreeToRadian(x - (float)mouseX);
 		float dy = DegreeToRadian(y - (float)mouseY);
-		XMMATRIX rot = XMMatrixRotationY(dx);
+		XMMATRIX rotX = XMMatrixRotationY(dx);
 		XMMATRIX rotZ = XMMatrixRotationX(dy);
-		rot = rot * rotZ;
-		XMVECTOR dir = XMLoadFloat4(&lights.light[0].dir);
-		dir = XMVector3Rotate(dir, XMQuaternionRotationMatrix(rot));
-		XMStoreFloat4(&lights.light[0].dir, dir);
+		XMMATRIX rot = rotX * rotZ;
+		//XMVECTOR dir = XMLoadFloat4(&lights.light[0].dir);
+		//dir = XMVector3Rotate(dir, XMQuaternionRotationMatrix(rot));
+		//XMStoreFloat4(&lights.light[0].dir, dir);
+		XMStoreFloat4x4(&cb.skyMatrix, XMLoadFloat4x4(&cb.skyMatrix) * rotX);
 	}
 	mouseX = x;
 	mouseY = y;

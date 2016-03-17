@@ -13,6 +13,7 @@ struct GSOutput
 
 cbuffer WVP : register(b0)
 {
+	float4x4 skyMatrix;
 	float4x4 viewInverse;
 	float4x4 proj;
 	float4x4 view;

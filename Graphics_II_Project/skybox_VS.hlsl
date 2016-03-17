@@ -12,13 +12,18 @@ struct OUTPUT
 
 cbuffer ConstantBuffer : register(b0)
 {
+	float4x4	skyMatrix;
 	float4x4	viewProj;
 };
 
 OUTPUT main(INPUT input)
 {
 	OUTPUT output;
-	output.pos = mul(float4(input.pos, 1), viewProj).xyww;
+	float4 pos = float4(input.pos, 1);
+	output.pos = mul(mul(pos, skyMatrix), viewProj).xyww;
+
+	//output.lookup = mul(pos, world).xyz;
 	output.lookup = input.pos;
+
 	return output;
 }

@@ -15,7 +15,6 @@ Camera::~Camera()
 		delete skybox;
 }
 
-
 void Camera::SetCubemap(ID3D11Device* gfx, const wchar_t * filePath)
 {
 	if (skybox) { delete skybox; skybox = nullptr; }

@@ -2,6 +2,9 @@ WASD to move
 Space to fly up
 Ctrl to fly down
 
+Hold Left Mouse to rotate camera
+Hold Right Mouse to rotate Skybox
+
 1 and 2 to switch Environment map
 5 to enable and disable the geometry generated "bounding box", fixed rotation, not orientation aligned, for tests.
 F to turn on/off the spot light

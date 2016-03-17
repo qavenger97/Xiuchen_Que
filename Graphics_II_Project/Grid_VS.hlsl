@@ -6,6 +6,7 @@ struct INPUT
 
 cbuffer WVP : register(b0)
 {
+	float4x4 skyMatrix;
 	float4x4 wvp;
 };
 

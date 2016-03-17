@@ -24,6 +24,7 @@ cbuffer Light : register(b0)
 {
 	Light lights[3];
 	Material material;
+	float4x4 skyMatrix;
 }
 
 struct INPUT
@@ -112,15 +113,15 @@ void ComputeLight(Light light, float3 surfacePos, float3 toEye, float3 surfaceNo
 
 float4 main( INPUT input ) : SV_TARGET
 {
-	float height = 2 * (normal.Sample(filter, input.uv.xy).a - .5f);
-	float2 newUV = normalize(input.eyeTengent).xy;
+	float height = 2 * normal.Sample(filter, input.uv.xy).a - 1;
+	float2 newUV = input.eyeTengent.xy;
 
 	float2 offsetUV = height * newUV * material.heightOffset + input.uv.xy;
 
 	float3 nrmT = normal.Sample(filter, offsetUV).xyz;
 	float3 specT = spec.Sample(filter, offsetUV).xyz;
 	float4 texColor = tex.Sample(filter, offsetUV);
-	nrmT = normalize((nrmT  - .5f)*2);
+	nrmT = normalize(nrmT * 2 - 1);
 
 	float3 nrn = normalize(input.normal);
 	float3 ten = normalize(input.tengent);
@@ -137,8 +138,9 @@ float4 main( INPUT input ) : SV_TARGET
 
 	float3 toEye = normalize(input.toEye);
 
-
-	float4 envColor = envMap.SampleLevel(filter, reflect(-toEye, surfaceNormal), specT.x*10);
+	float3 reflection = reflect(-toEye, surfaceNormal);
+	float3 lookup = mul(reflection, (float3x3)(skyMatrix));
+	float4 envColor = envMap.SampleLevel(filter, lookup, specT.x * 10);
 
 	float4 diffuseLight_d;
 	ComputeLight(lights[0], input.posWorld, toEye, surfaceNormal, diffuseLight_d, specularLight_d);
@@ -155,7 +157,7 @@ float4 main( INPUT input ) : SV_TARGET
 	specularLight = lerp(envColor, specularLight, specT.y);*/
 	float f = pow((1 - saturate(dot(toEye, surfaceNormal))), material.fresnelPower) * specT.y;
 	float3 fresnel = float3(f, f, f);
-	//emissive += fresnel;
+	emissive += fresnel;
 	//return envColor;
 	//return float4(diffuseLight.xyz, 1);
 	//return float4(specularLight.xyz, 1);
