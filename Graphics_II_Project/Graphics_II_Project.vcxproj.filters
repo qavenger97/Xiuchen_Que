@@ -71,6 +71,12 @@
     <FxCompile Include="Debug_GS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Post_VS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Post_PS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

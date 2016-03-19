@@ -25,6 +25,8 @@ using namespace std;
 #include "Debug_VS.csh"
 #include "Debug_PS.csh"
 #include "Debug_GS.csh"
+#include "Post_VS.csh"
+#include "Post_PS.csh"
 #include "DDSTextureLoader.h"
 #include "XTime.h"
 #include "Camera.h"
@@ -520,6 +522,74 @@ public:
 	}
 };
 
+class PostQuad
+{
+public:
+	PostQuad(ID3D11Device* gfx)
+	{
+		XMFLOAT4 verts[4] = 
+		{
+			{-1,  1,  0,  0},
+			{-1, -1,  0,  1},
+			{ 1,  1,  1,  0},
+			{ 1, -1,  1,  1}
+		};
+
+		UINT indices[] = 
+		{
+			0,1,2,
+			2,1,3
+		};
+		D3D11_BUFFER_DESC bd = {};
+		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		bd.ByteWidth = sizeof(verts);
+		bd.Usage = D3D11_USAGE_IMMUTABLE;
+		
+		D3D11_SUBRESOURCE_DATA sd = {};
+		sd.pSysMem = verts;
+		gfx->CreateBuffer(&bd, &sd, &pVertexBuffer);
+
+		bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		bd.ByteWidth = sizeof(indices);
+		sd.pSysMem = indices;
+		gfx->CreateBuffer(&bd, &sd, &pIndexBuffer);
+
+		gfx->CreateVertexShader(Post_VS, sizeof(Post_VS), 0, &pVS);
+		gfx->CreatePixelShader(Post_PS, sizeof(Post_PS), 0, &pPS);
+
+		D3D11_INPUT_ELEMENT_DESC ied[] = 
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA,0, };
+		gfx->CreateInputLayout(ied, ARRAYSIZE(ied), Post_VS, sizeof(Post_VS), &pLayout);
+	}
+
+	void Draw(ID3D11DeviceContext* gfx)
+	{
+		UINT stride = sizeof(XMFLOAT4);
+		UINT offset = 0;
+		gfx->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
+		gfx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+		gfx->IASetInputLayout(pLayout);
+		gfx->VSSetShader(pVS, 0, 0);
+		gfx->PSSetShader(pPS, 0, 0);
+		gfx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		gfx->DrawIndexed(6, 0, 0);
+	}
+	~PostQuad()
+	{
+		SAFE_RELEASE(pPS);
+		SAFE_RELEASE(pVS);
+		SAFE_RELEASE(pLayout);
+		SAFE_RELEASE(pIndexBuffer);
+		SAFE_RELEASE(pVertexBuffer);
+	}
+private:
+	ID3D11Buffer* pVertexBuffer = 0;
+	ID3D11Buffer* pIndexBuffer = 0;
+	ID3D11InputLayout* pLayout = 0;
+	ID3D11VertexShader* pVS = 0;
+	ID3D11PixelShader* pPS = 0;
+};
+
 class DEMO_APP
 {	
 	HINSTANCE						application;
@@ -530,6 +600,7 @@ class DEMO_APP
 	ID3D11DeviceContext* pDeviceContext = 0;
 	IDXGISwapChain* pSwapChain = 0;
 	ID3D11RenderTargetView* pRTV = 0;
+	ID3D11RenderTargetView* pPostView = 0;
 	ID3D11DepthStencilView* pDSV = 0;
 	D3D11_VIEWPORT viewPort;
 
@@ -551,6 +622,8 @@ class DEMO_APP
 	ID3D11ShaderResourceView* pSRV = 0;
 	ID3D11ShaderResourceView* pSRV1 = 0;
 	ID3D11ShaderResourceView* pSRV2 = 0;
+	ID3D11ShaderResourceView* pPostRsc = 0;
+	ID3D11ShaderResourceView* pDepthRsc = 0;
 	SamplerStates samplers;
 	ConstantPerObject cb;
 	Mesh mesh;
@@ -565,6 +638,7 @@ class DEMO_APP
 	WORD mouseX;
 	WORD mouseY;
 	BOOL animate = false;
+	PostQuad* post;
 private:
 	void InitResources();
 public:	
@@ -640,6 +714,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 		{
 			OutputDebugString(L"Get Backbuffer failed\n");
 		}
+
 		ZeroMemory(&viewPort, sizeof(viewPort));
 		viewPort.Height = BACKBUFFER_HEIGHT;
 		viewPort.Width = BACKBUFFER_WIDTH;
@@ -647,13 +722,29 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 		D3D11_BUFFER_DESC bd;
 		ZeroMemory(&bd, sizeof(bd));
 		bd.CPUAccessFlags = 0;
-		bd.BindFlags = D3D11_BIND_RENDER_TARGET;
+
 
 		rs = pDevice->CreateRenderTargetView(backBuffer, 0, &pRTV);
 		if (rs != S_OK)
 		{
 			OutputDebugString(L"Create RTV failed\n");
 		}
+
+		D3D11_TEXTURE2D_DESC textDesc;
+		backBuffer->GetDesc(&textDesc);
+
+		if(backBuffer)backBuffer->Release();
+		textDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+		pDevice->CreateTexture2D(&textDesc, 0, &backBuffer);
+
+
+		rs = pDevice->CreateRenderTargetView(backBuffer, 0, &pPostView);
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvD = {};
+		srvD.Format = textDesc.Format;
+		srvD.Texture2D.MipLevels = 1;
+		srvD.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		pDevice->CreateShaderResourceView(backBuffer,&srvD , &pPostRsc);
+		if (backBuffer)backBuffer->Release();
 
 		bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -669,21 +760,20 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 		bd.ByteWidth = sizeof(lights);
 		rs = pDevice->CreateBuffer(&bd, 0, &pLightsBuffer);
 		
-		backBuffer->Release();
 	}
 
 	ID3D11Texture2D* depthBuffer = 0;
 	D3D11_TEXTURE2D_DESC td;
 	ZeroMemory(&td, sizeof(td));
-	td.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	td.Format = DXGI_FORMAT_R24G8_TYPELESS;
 	td.Height = BACKBUFFER_HEIGHT;
 	td.Width = BACKBUFFER_WIDTH;
 	td.ArraySize = 1;
 	td.MipLevels = 1;
 	td.Usage = D3D11_USAGE_DEFAULT;
-	td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	td.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 	td.SampleDesc.Count = 1;
-	//td.SampleDesc.Quality = 8;
+
 	rs = pDevice->CreateTexture2D(&td, 0, &depthBuffer);
 	if (rs != S_OK)
 	{
@@ -712,6 +802,13 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 	{
 		OutputDebugString(L"Create Depth Stencil View failed\n");
 	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
+	srvd.Texture2D.MipLevels = 1;
+	srvd.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	pDevice->CreateShaderResourceView(depthBuffer, &srvd, &pDepthRsc);
+
 	if (depthBuffer) depthBuffer->Release();
 
 	D3D11_INPUT_ELEMENT_DESC layout[] =
@@ -790,15 +887,12 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 
 
 	InitResources();
-	pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
+	//pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
 	pDeviceContext->RSSetViewports(1, &viewPort);
 	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
 	
 }
 
-//************************************************************
-//************ EXECUTION *************************************
-//************************************************************
 void DEMO_APP::InitResources()
 {
 	XMStoreFloat4x4(&cb.skyMatrix, XMMatrixIdentity());
@@ -830,10 +924,15 @@ void DEMO_APP::InitResources()
 	lights.material.fresnelPower = 1;
 	lights.material.specularPower = 10;
 	lights.material.heightOffset = 0.02f;
+	post = new PostQuad(pDevice);
 }
 bool DEMO_APP::Run()
 {
 	timer.Signal();
+	//pDeviceContext->ClearState();
+	pDeviceContext->OMSetRenderTargets(1, &pPostView, pDSV);
+	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
+	pDeviceContext->RSSetViewports(1, &viewPort);
 	float dt = (float)timer.Delta();
 	camera.Update(dt);
 	XMStoreFloat4(&lights.light[2].dir, camera.GetViewMatrixInverse().r[2]);
@@ -1023,8 +1122,16 @@ bool DEMO_APP::Run()
 			mesh.ToogleBoundingBox();
 		}
 	}
-	//grid.Draw(pDeviceContext);
+	//pDeviceContext->ClearState();
+
+	pDeviceContext->OMSetRenderTargets(1, &pRTV, nullptr);
+	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
+	pDeviceContext->RSSetViewports(1, &viewPort);
+	pDeviceContext->PSSetShaderResources(0, 1, &pPostRsc);
+	pDeviceContext->PSSetShaderResources(1, 1, &pDepthRsc);
+	post->Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
+	pDeviceContext->ClearState();
 	return true; 
 }
 
@@ -1034,6 +1141,7 @@ bool DEMO_APP::Run()
 
 bool DEMO_APP::ShutDown()
 {
+	if (post)delete post;
 	if (pRasterizerState_back)pRasterizerState_back->Release();
 	if (pSRV)pSRV->Release();
 	if (pSRV1)pSRV1->Release();
@@ -1042,7 +1150,6 @@ bool DEMO_APP::ShutDown()
 	if (ps)ps->Release();
 	if (vs)vs->Release();
 	if (pOverlay)pOverlay->Release();
-
 	if (pStencilDraw)pStencilDraw->Release();
 	if (pStencilClip)pStencilClip->Release();
 	if (pStencilDisable)pStencilDisable->Release();
@@ -1053,7 +1160,10 @@ bool DEMO_APP::ShutDown()
 	if (pConstantBuffer)pConstantBuffer->Release();
 	if (pIndexBuffer)pIndexBuffer->Release();
 	if (pVertexBuffer) pVertexBuffer->Release();
+	if (pPostRsc)pPostRsc->Release();
+	if (pDepthRsc)pDepthRsc->Release();
 	if (pDSV)pDSV->Release();
+	if (pPostView)pPostView->Release();
 	if (pRTV)pRTV->Release();
 	if (pSwapChain)pSwapChain->Release();
 	if (pDeviceContext)pDeviceContext->Release();
@@ -1070,33 +1180,56 @@ void DEMO_APP::Resize(WORD width, WORD height)
 		viewPort.Width = width;
 		if (pDSV)pDSV->Release();
 		if (pRTV)pRTV->Release();
+		if (pPostView)pPostView->Release();
+		if (pPostRsc)pPostRsc->Release();
+		if (pDepthRsc)pDepthRsc->Release();
 		if (pSwapChain)pSwapChain->ResizeBuffers(1, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
 		ID3D11Texture2D* pBackBuffer;
 		pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
 
 		pDevice->CreateRenderTargetView(pBackBuffer, 0, &pRTV);
 
+		D3D11_TEXTURE2D_DESC textDesc;
+		pBackBuffer->GetDesc(&textDesc);
+
 		if (pBackBuffer)pBackBuffer->Release();
+		textDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+		pDevice->CreateTexture2D(&textDesc, 0, &pBackBuffer);
+
+
+		rs = pDevice->CreateRenderTargetView(pBackBuffer, 0, &pPostView);
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvD = {};
+		srvD.Format = textDesc.Format;
+		srvD.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srvD.Texture2D.MipLevels = 1;
+		pDevice->CreateShaderResourceView(pBackBuffer, &srvD, &pPostRsc);
+		if (pBackBuffer)pBackBuffer->Release();
+
 
 		D3D11_TEXTURE2D_DESC td = {};
 		td.ArraySize = 1;
-		td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+		td.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 		td.Height = height;
 		td.Width = width;
-		td.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		td.Format = DXGI_FORMAT_R24G8_TYPELESS;
 		td.MipLevels = 1;
 		td.SampleDesc.Count = 1;
 		td.Usage = D3D11_USAGE_DEFAULT;
 
 		D3D11_DEPTH_STENCIL_VIEW_DESC dsvd = {};
-		dsvd.Format = td.Format;
+		dsvd.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 		dsvd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 		ID3D11Texture2D* depthBuffer;
 		pDevice->CreateTexture2D(&td, 0, &depthBuffer);
 		pDevice->CreateDepthStencilView(depthBuffer, &dsvd, &pDSV);
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
+		srvd.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+		srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srvd.Texture2D.MipLevels = 1;
+		pDevice->CreateShaderResourceView(depthBuffer, &srvd, &pDepthRsc);
 		depthBuffer->Release();
-		pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
-		pDeviceContext->RSSetViewports(1, &viewPort);
+		//pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
 		camera.SetProjection(FOV, width, height, nearPlane, farPlane);
 		camera.Update((float)timer.Delta());
 	}

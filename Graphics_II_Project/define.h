@@ -17,6 +17,7 @@ struct ConstantPerObject
 	XMFLOAT4X4 view;
 };
 
+
 struct Vertex
 {
 	XMFLOAT3 pos;
