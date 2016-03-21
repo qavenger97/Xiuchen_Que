@@ -27,6 +27,7 @@ using namespace std;
 #include "Debug_GS.csh"
 #include "Post_VS.csh"
 #include "Post_PS.csh"
+#include "Refract_PS.csh"
 #include "DDSTextureLoader.h"
 #include "XTime.h"
 #include "Camera.h"
@@ -462,7 +463,7 @@ public:
 		SAFE_RELEASE(pVertexBuffer);
 		SAFE_RELEASE(pIndexBuffer);
 	}
-	void Draw(ID3D11DeviceContext* gfx)
+	void Draw(ID3D11DeviceContext* gfx, bool shader = true)
 	{
 		UINT stride = sizeof Vertex;
 		UINT offset = 0;
@@ -471,8 +472,12 @@ public:
 		//ID3D11Buffer* buffer[] = pVertexBuffer, 
 		gfx->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
 		gfx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
 		gfx->VSSetShader(vs, 0, 0);
-		gfx->PSSetShader(ps, 0, 0);
+		if (shader)
+		{
+			gfx->PSSetShader(ps, 0, 0);
+		}
 		gfx->IASetInputLayout(pLayout);
 
 		D3D11_MAPPED_SUBRESOURCE mr = {};
@@ -509,11 +514,14 @@ public:
 			UINT stride_debug = sizeof BoundingBox;
 			UINT offset_debug = 0;
 			gfx->IASetInputLayout(pDebugLayout);
+			gfx->IASetVertexBuffers(0, 1, &pDebugBox,&stride_debug,&offset_debug);
 
 			gfx->VSSetShader(pDebug_VS, 0, 0);
-			gfx->IASetVertexBuffers(0, 1, &pDebugBox,&stride_debug,&offset_debug);
 			gfx->GSSetShader(pDebug_GS, 0, 0);
-			gfx->PSSetShader(pDebug_PS, 0, 0);
+			if (shader)
+			{
+				gfx->PSSetShader(pDebug_PS, 0, 0);
+			}
 			gfx->GSSetConstantBuffers(0, 1, &pConstantBuffer);
 			gfx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
 			gfx->Draw(numInstance, 0);
@@ -611,7 +619,8 @@ class DEMO_APP
 	ID3D11Buffer* pLightsBuffer = 0;
 	ID3D11Buffer* pPostBuffer = 0;
 	ID3D11RasterizerState* pRasterizerState = 0;
-	ID3D11RasterizerState* pRasterizerState_back = 0;
+	ID3D11RasterizerState* pRasterizerState_wire = 0; 
+	
 	ID3D11BlendState* pOverlay = 0;
 	ID3D11DepthStencilState* pStencilDisable = 0;
 	ID3D11DepthStencilState* pStencilClip = 0;
@@ -619,6 +628,7 @@ class DEMO_APP
 	ID3D11InputLayout* pLayout = 0;
 	ID3D11VertexShader* vs = 0;
 	ID3D11PixelShader* ps = 0;
+	ID3D11PixelShader* pPS = 0;
 	ID3D11GeometryShader* gs = 0;
 	ID3D11ShaderResourceView* pSRV = 0;
 	ID3D11ShaderResourceView* pSRV1 = 0;
@@ -794,8 +804,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 	rasterDesc.MultisampleEnable = true;
 	pDevice->CreateRasterizerState(&rasterDesc, &pRasterizerState);
 
-	rasterDesc.CullMode = D3D11_CULL_FRONT;
-	pDevice->CreateRasterizerState(&rasterDesc, &pRasterizerState_back);
+	rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
+	pDevice->CreateRasterizerState(&rasterDesc, &pRasterizerState_wire);
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC svd;
 	ZeroMemory(&svd, sizeof(svd));
@@ -837,6 +847,12 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1
 		OutputDebugString(L"Create Vertex Shader failed\n");
 	}
 	rs = pDevice->CreatePixelShader(Trivial_PS, ARRAYSIZE(Trivial_PS), 0, &ps);
+	if (rs != S_OK)
+	{
+		OutputDebugString(L"Create Pixel Shader failed\n");
+	}
+
+	rs = pDevice->CreatePixelShader(Refract_PS, ARRAYSIZE(Refract_PS), 0, &pPS);
 	if (rs != S_OK)
 	{
 		OutputDebugString(L"Create Pixel Shader failed\n");
@@ -905,7 +921,7 @@ void DEMO_APP::InitResources()
 	mesh.Create(pDevice, L"plane.obj");
 	mesh1.Create(pDevice, L"plane.obj", 0.3f);
 	hole.Create(pDevice, L"plane.obj", 0.3f);
-	mesh2.Create(pDevice, L"plane.obj", 0.3f);
+	mesh2.Create(pDevice, L"chest.obj", 0.3f);
 	camera.SetCubemap(pDevice, L"Cube_City.dds");
 
 	CreateDDSTextureFromFile(pDevice, L"C.dds", nullptr, &pSRV);
@@ -964,9 +980,8 @@ bool DEMO_APP::Run()
 		{
 			dir = 1;
 		}
-		lights.material.fresnelIntensity -= dt*0.1f * dir;
+		lights.material.fresnelIntensity -= dt*0.5f * dir;
 	}
-	
 
 	D3D11_MAPPED_SUBRESOURCE ms = {};
 	XMStoreFloat4x4(&cb.viewInverse, camera.GetPos() * camera.GetViewProjectionMatrix());
@@ -1083,7 +1098,6 @@ bool DEMO_APP::Run()
 
 		if (GetAsyncKeyState(VK_RIGHT))
 		{
-
 			if (GetAsyncKeyState(VK_SHIFT))
 			{
 				wave.amplitude += dt*0.01f;
@@ -1099,6 +1113,15 @@ bool DEMO_APP::Run()
 				XMStoreFloat4(&lights.light[1].pos, d + pos);
 				lights.light[1].pos.w = 1;
 			}
+		}
+
+		if (GetAsyncKeyState(VK_F3) & 0x01)
+		{
+			pDeviceContext->RSSetState(pRasterizerState);
+		}
+		if (GetAsyncKeyState(VK_F4) & 0x01)
+		{
+			pDeviceContext->RSSetState(pRasterizerState_wire);
 		}
 
 		if (GetAsyncKeyState(VK_UP))
@@ -1142,12 +1165,13 @@ bool DEMO_APP::Run()
 	pDeviceContext->UpdateSubresource(pPostBuffer, 0, 0, &wave, 0, 0);
 	post->Draw(pDeviceContext);
 
+	pDeviceContext->PSSetShader(pPS, 0, 0);
 	pDeviceContext->PSSetShaderResources(0, 1, &pPostRsc); 
 	pDeviceContext->PSSetShaderResources(1, 1, &pFlatNormal);
 	pDeviceContext->PSSetShaderResources(2, 1, &pSRV2);
 	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
 	pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
-	mesh2.Draw(pDeviceContext);
+	mesh2.Draw(pDeviceContext, false);
 	pSwapChain->Present(0, 0);
 	pDeviceContext->ClearState();
 	return true; 
@@ -1160,7 +1184,6 @@ bool DEMO_APP::Run()
 bool DEMO_APP::ShutDown()
 {
 	if (post)delete post;
-	if (pRasterizerState_back)pRasterizerState_back->Release();
 	if (pSRV)pSRV->Release();
 	if (pSRV1)pSRV1->Release();
 	if (pSRV2)pSRV2->Release();
@@ -1172,6 +1195,8 @@ bool DEMO_APP::ShutDown()
 	if (pStencilClip)pStencilClip->Release();
 	if (pStencilDisable)pStencilDisable->Release();
 	if (pFlatNormal)pFlatNormal->Release();
+	if (pPS)pPS->Release();
+	if (pRasterizerState_wire)pRasterizerState_wire->Release();
 	if (pRasterizerState)pRasterizerState->Release();
 	if (pPostBuffer)pPostBuffer->Release();
 	if (pDepthBuffer)pDepthBuffer->Release();
