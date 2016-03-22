@@ -150,7 +150,7 @@ float4 main( INPUT input ) : SV_TARGET
 	float4 diffuseLight_s;
 	ComputeLight(lights[2], input.posWorld, toEye, surfaceNormal, diffuseLight_s, specularLight_s);
 
-	float4 diffuseLight = (diffuseLight_d + diffuseLight_p + diffuseLight_s) + envColor * (1 - specT.x);
+	float4 diffuseLight = (diffuseLight_d + diffuseLight_p + diffuseLight_s);
 
 	float4 specularLight = (specularLight_d + specularLight_p + specularLight_s) + envColor;
 

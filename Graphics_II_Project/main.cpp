@@ -323,7 +323,6 @@ struct Grid
 		gfx->Unmap(pConstantBuffer, 0);
 
 		gfx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
-		gfx->RSSetState(bMSAA ? pRasterizerState : nullptr);
 		gfx->DrawIndexed(84, 0, 0);
 	}
 	
@@ -374,7 +373,7 @@ public:
 				UINT i = y * 10 + x;
 				XMMATRIX transformation = XMMatrixIdentity();
 				transformation = transformation * XMMatrixScaling(scale, scale, scale);
-				transformation = transformation * XMMatrixRotationY(DegreeToRadian(x*36.0f));
+				//transformation = transformation * XMMatrixRotationY(DegreeToRadian(x*36.0f));
 				XMStoreFloat4x4(&transform[i].world, transformation);
 				transform[i].world.m[3][0] = x * 10.0f - 50;
 				transform[i].world.m[3][2] = y * 10.0f - 50;
@@ -633,16 +632,50 @@ class DEMO_APP
 	ID3D11ShaderResourceView* pSRV = 0;
 	ID3D11ShaderResourceView* pSRV1 = 0;
 	ID3D11ShaderResourceView* pSRV2 = 0;
+
+	ID3D11ShaderResourceView* pWood_c = 0;
+	ID3D11ShaderResourceView* pWood_n = 0;
+	ID3D11ShaderResourceView* pWood_r = 0;
+
+	ID3D11ShaderResourceView* pMetal_c = 0;
+	ID3D11ShaderResourceView* pMetal_n = 0;
+	ID3D11ShaderResourceView* pMetal_r = 0;
+
+	ID3D11ShaderResourceView* pWall_c = 0;
+	ID3D11ShaderResourceView* pWall_n = 0;
+	ID3D11ShaderResourceView* pWall_r = 0;
+
+
+	ID3D11ShaderResourceView* pCloth_c = 0;
+	ID3D11ShaderResourceView* pCloth_n = 0;
+	ID3D11ShaderResourceView* pCloth_r = 0;
+
+	ID3D11ShaderResourceView* pSofa_c = 0;
+	ID3D11ShaderResourceView* pSofa_n = 0;
+	ID3D11ShaderResourceView* pSofa_r = 0;
+
 	ID3D11ShaderResourceView* pPostRsc = 0;
 	ID3D11ShaderResourceView* pDepthRsc = 0;
 	ID3D11ShaderResourceView* pFlatNormal = 0;
 	SamplerStates samplers;
 	ConstantPerObject cb;
 	Wave wave;
-	Mesh mesh;
-	Mesh mesh1;
+
+	Mesh vase;
+	Mesh floor;
+	Mesh metal;
+	Mesh wood;
+	Mesh books;
+	Mesh shelf;
+	Mesh wall;
+	Mesh lamp;
+	Mesh cloth;
+	Mesh handle;
+	Mesh sofa;
+	Mesh mirror;
+
 	Mesh hole;
-	Mesh mesh2;
+
 	Grid grid;
 	Star star;
 	LightBuffer lights;
@@ -653,6 +686,7 @@ class DEMO_APP
 	WORD mouseY;
 	BOOL animate = false;
 	PostQuad* post;
+	bool wireframe = false;
 private:
 	void InitResources();
 public:	
@@ -663,13 +697,22 @@ public:
 	void OnMouseMove(WPARAM btnState, WORD x, WORD y);
 };
 
-//************************************************************
-//************ CREATION OF OBJECTS & RESOURCES ***************
-//************************************************************
-
 DEMO_APP* g_myApp;
 
-DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):mesh(0.1f), hole(0.03f), mesh1(0.1f), mesh2(0.02f)
+DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc):
+	hole(0.03f), 
+	vase(0.0025f), 
+	sofa(0.0025f),
+	wood(0.0025f),
+	wall(0.0025f),
+	lamp(0.0025f),
+	floor(0.2f),
+	metal(0.0025f),
+	books(0.0025f),
+	shelf(0.0025f),
+	cloth(0.0025f),
+	mirror(0.0025f),
+	handle(0.0025f)
 {
 	// ****************** BEGIN WARNING ***********************// 
 	// WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY! 
@@ -918,16 +961,46 @@ void DEMO_APP::InitResources()
 	star.Create(pDevice);
 	star.transform.m[3][0] = 2;
 	grid.Create(pDevice);
-	mesh.Create(pDevice, L"plane.obj");
-	mesh1.Create(pDevice, L"plane.obj", 0.3f);
-	hole.Create(pDevice, L"plane.obj", 0.3f);
-	mesh2.Create(pDevice, L"chest.obj", 0.3f);
+
+	hole.Create(pDevice, L"plane.obj");
+	vase.Create(pDevice, L"..\\Graphics_II_Project\\Room\\vase.obj");
+	floor.Create(pDevice, L"plane.obj");
+	metal.Create(pDevice, L"..\\Graphics_II_Project\\Room\\metal.obj");
+	wood.Create(pDevice, L"..\\Graphics_II_Project\\Room\\woods.obj");
+	books.Create(pDevice, L"..\\Graphics_II_Project\\Room\\books.obj");
+	shelf.Create(pDevice, L"..\\Graphics_II_Project\\Room\\shelf.obj");
+	wall.Create(pDevice, L"..\\Graphics_II_Project\\Room\\wall.obj");
+	lamp.Create(pDevice, L"..\\Graphics_II_Project\\Room\\lights.obj");
+	cloth.Create(pDevice, L"..\\Graphics_II_Project\\Room\\cloth.obj");
+	sofa.Create(pDevice, L"..\\Graphics_II_Project\\Room\\sofa.obj");
+	mirror.Create(pDevice, L"..\\Graphics_II_Project\\Room\\mirror.obj");
+	handle.Create(pDevice, L"..\\Graphics_II_Project\\Room\\handleMetal.obj");
+
 	camera.SetCubemap(pDevice, L"Cube_City.dds");
 
 	CreateDDSTextureFromFile(pDevice, L"C.dds", nullptr, &pSRV);
 	CreateDDSTextureFromFile(pDevice, L"N.dds", nullptr, &pSRV1);
 	CreateDDSTextureFromFile(pDevice, L"R.dds", nullptr, &pSRV2);
 	CreateDDSTextureFromFile(pDevice, L"FLAT_N.dds", nullptr, &pFlatNormal);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\Wood_C.dds", 0, &pWood_c);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\Wood_N.dds", 0, &pWood_n);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\Wood_R.dds", 0, &pWood_r);
+
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\metal_c.dds", 0, &pMetal_c);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\metal_n.dds", 0, &pMetal_n);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\metal_r.dds", 0, &pMetal_r);
+
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\wall_c.dds", 0, &pWall_c);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\wall_n.dds", 0, &pWall_n);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\wall_r.dds", 0, &pWall_r);
+
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\cloth_c.dds", 0, &pCloth_c);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\cloth_n.dds", 0, &pCloth_n);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\cloth_r.dds", 0, &pCloth_r);
+
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\sofa_c.dds", 0, &pSofa_c);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\sofa_n.dds", 0, &pSofa_n);
+	CreateDDSTextureFromFile(pDevice, L"..\\Graphics_II_Project\\Texture\\sofa_r.dds", 0, &pSofa_r);
 
 	lights.light[0].pos = XMFLOAT4(0, 0, 0, 0);
 	lights.light[0].dir = XMFLOAT4(0, -1, 0, 0);
@@ -951,7 +1024,7 @@ void DEMO_APP::InitResources()
 	lights.material.heightOffset = 0.04f;
 	post = new PostQuad(pDevice);
 
-	wave.amplitude = 0.01f;
+	wave.amplitude = 0.001f;
 	wave.frequency = 50;
 	wave.speed = 0;
 }
@@ -997,7 +1070,6 @@ bool DEMO_APP::Run()
 	pDeviceContext->VSSetShader(vs, 0, 0);
 	pDeviceContext->PSSetShader(ps, 0, 0);
 
-	pDeviceContext->RSSetState(pRasterizerState);
 	lights.skyMatrix = cb.skyMatrix;
 	pDeviceContext->UpdateSubresource(pLightsBuffer, 0, 0, &lights, 0, 0);
 
@@ -1013,11 +1085,18 @@ bool DEMO_APP::Run()
 	pDeviceContext->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 
 
-	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
-	pDeviceContext->PSSetShaderResources(1, 1, &pSRV1);
-	pDeviceContext->PSSetShaderResources(2, 1, &pSRV2);
-
 	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
+
+
+	if (wireframe)
+	{
+		pDeviceContext->RSSetState(pRasterizerState_wire);
+	}
+	else
+	{
+		pDeviceContext->RSSetState(pRasterizerState);
+	}
+
 
 	star.Draw(pDeviceContext);
 
@@ -1029,12 +1108,45 @@ bool DEMO_APP::Run()
 
 	pDeviceContext->OMSetBlendState(pOverlay, factor, 0xffffffff);
 	pDeviceContext->OMSetDepthStencilState(pStencilClip, 1);
-	mesh1.Draw(pDeviceContext);
+	pDeviceContext->PSSetShaderResources(0, 1, &pWood_c);
+	pDeviceContext->PSSetShaderResources(1, 1, &pWood_n);
+	pDeviceContext->PSSetShaderResources(2, 1, &pWood_r);
+	floor.Draw(pDeviceContext);
 
 	pDeviceContext->OMSetDepthStencilState(pStencilDisable, 0);
-	mesh.Draw(pDeviceContext);
 
-	//HandleControl
+	pDeviceContext->PSSetShaderResources(0, 1, &pSRV);
+	pDeviceContext->PSSetShaderResources(1, 1, &pSRV1);
+	pDeviceContext->PSSetShaderResources(2, 1, &pSRV2);
+	vase.Draw(pDeviceContext);
+	books.Draw(pDeviceContext);
+
+	pDeviceContext->PSSetShaderResources(0, 1, &pSofa_c);
+	pDeviceContext->PSSetShaderResources(1, 1, &pSofa_n);
+	pDeviceContext->PSSetShaderResources(2, 1, &pSofa_r);
+	sofa.Draw(pDeviceContext);
+
+	pDeviceContext->PSSetShaderResources(0, 1, &pCloth_c);
+	pDeviceContext->PSSetShaderResources(1, 1, &pCloth_n);
+	pDeviceContext->PSSetShaderResources(2, 1, &pCloth_r);
+	cloth.Draw(pDeviceContext);
+	pDeviceContext->PSSetShaderResources(0, 1, &pWall_c);
+	pDeviceContext->PSSetShaderResources(1, 1, &pWall_n);
+	pDeviceContext->PSSetShaderResources(2, 1, &pWall_r);
+	wall.Draw(pDeviceContext);
+	pDeviceContext->PSSetShaderResources(0, 1, &pMetal_c);
+	pDeviceContext->PSSetShaderResources(1, 1, &pMetal_n);
+	pDeviceContext->PSSetShaderResources(2, 1, &pMetal_r);
+	lamp.Draw(pDeviceContext);
+	metal.Draw(pDeviceContext);
+	handle.Draw(pDeviceContext);
+	pDeviceContext->PSSetShaderResources(0, 1, &pWood_c);
+	pDeviceContext->PSSetShaderResources(1, 1, &pWood_n);
+	pDeviceContext->PSSetShaderResources(2, 1, &pWood_r);
+	shelf.Draw(pDeviceContext);
+	wood.Draw(pDeviceContext);
+
+
 	{
 
 		if (GetAsyncKeyState('1') & 0x01)
@@ -1114,14 +1226,13 @@ bool DEMO_APP::Run()
 				lights.light[1].pos.w = 1;
 			}
 		}
-
 		if (GetAsyncKeyState(VK_F3) & 0x01)
 		{
-			pDeviceContext->RSSetState(pRasterizerState);
+			wireframe = false;
 		}
 		if (GetAsyncKeyState(VK_F4) & 0x01)
 		{
-			pDeviceContext->RSSetState(pRasterizerState_wire);
+			wireframe = true;
 		}
 
 		if (GetAsyncKeyState(VK_UP))
@@ -1150,11 +1261,27 @@ bool DEMO_APP::Run()
 
 		if (GetAsyncKeyState('5') & 0x01)
 		{
-			mesh.ToogleBoundingBox();
+			vase.ToogleBoundingBox();
+			wood.ToogleBoundingBox();
+			wall.ToogleBoundingBox();
+			lamp.ToogleBoundingBox();
+			sofa.ToogleBoundingBox();
+			metal.ToogleBoundingBox();
+			floor.ToogleBoundingBox();
+			books.ToogleBoundingBox();
+			shelf.ToogleBoundingBox();
+			cloth.ToogleBoundingBox();
+			mirror.ToogleBoundingBox();
+			handle.ToogleBoundingBox();
 		}
+
+
+		
+
 	}
 	//pDeviceContext->ClearState();
 	wave.speed += dt;
+
 
 	pDeviceContext->OMSetRenderTargets(1, &pRTV, nullptr);
 	pDeviceContext->PSSetSamplers(0, 1, samplers.GetAnisotroicSampler());
@@ -1165,13 +1292,22 @@ bool DEMO_APP::Run()
 	pDeviceContext->UpdateSubresource(pPostBuffer, 0, 0, &wave, 0, 0);
 	post->Draw(pDeviceContext);
 
+	if (wireframe)
+	{
+		pDeviceContext->RSSetState(pRasterizerState_wire);
+	}
+	else
+	{
+		pDeviceContext->RSSetState(pRasterizerState);
+	}
+
 	pDeviceContext->PSSetShader(pPS, 0, 0);
 	pDeviceContext->PSSetShaderResources(0, 1, &pPostRsc); 
 	pDeviceContext->PSSetShaderResources(1, 1, &pFlatNormal);
 	pDeviceContext->PSSetShaderResources(2, 1, &pSRV2);
 	pDeviceContext->PSSetConstantBuffers(0, 1, &pLightsBuffer);
 	pDeviceContext->OMSetRenderTargets(1, &pRTV, pDSV);
-	mesh2.Draw(pDeviceContext, false);
+	mirror.Draw(pDeviceContext);
 	pSwapChain->Present(0, 0);
 	pDeviceContext->ClearState();
 	return true; 
@@ -1202,8 +1338,27 @@ bool DEMO_APP::ShutDown()
 	if (pDepthBuffer)pDepthBuffer->Release();
 	if (pLightsBuffer)pLightsBuffer->Release();
 	if (pConstantBuffer)pConstantBuffer->Release();
-	//if (pIndexBuffer)pIndexBuffer->Release();
-	//if (pVertexBuffer) pVertexBuffer->Release();
+
+	if (pWood_c)pWood_c->Release();
+	if (pWood_r)pWood_r->Release();
+	if (pWood_n)pWood_n->Release();
+
+	if (pMetal_c)pMetal_c->Release();
+	if (pMetal_r)pMetal_r->Release();
+	if (pMetal_n)pMetal_n->Release();
+
+	if (pWall_c)pWall_c->Release();
+	if (pWall_r)pWall_r->Release();
+	if (pWall_n)pWall_n->Release();
+
+	if (pCloth_c)pCloth_c->Release();
+	if (pCloth_r)pCloth_r->Release();
+	if (pCloth_n)pCloth_n->Release();
+
+	if (pSofa_c)pSofa_c->Release();
+	if (pSofa_r)pSofa_r->Release();
+	if (pSofa_n)pSofa_n->Release();
+
 	if (pPostRsc)pPostRsc->Release();
 	if (pDepthRsc)pDepthRsc->Release();
 	if (pDSV)pDSV->Release();
