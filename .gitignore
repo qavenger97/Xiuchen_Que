@@ -7,3 +7,7 @@ ipch
 *.db
 *.opensdf
 *.user
+_site
+.sass-cache
+Gemfile.lock
+*.gem
